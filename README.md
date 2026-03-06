@@ -779,7 +779,42 @@ Notable ties:
 
 ---
 
-## 16. Open questions
+## 16. Current dataset token counts
+
+> **Snapshot as of March 5, 2026 9:26 PM PST.** Data gathering is still in progress — these numbers will grow as more content types (magazines, books, brochures, songs, etc.) are scraped.
+
+Token estimates use the ~4 chars/token approximation. "Full sequence" includes system prompt + user instruction + assistant response; "target only" is just the assistant (translation) output.
+
+### By split
+
+| Split | Examples | Full sequence tokens | Target tokens |
+|---|---|---|---|
+| train_full | 60,376 | ~8.4M | ~2.2M |
+| train_balanced | 1,233 | ~200K | ~59K |
+| validation | 42 | ~6.6K | ~1.9K |
+| test | 334 | ~57K | ~18K |
+
+### TVL→EN direction (train_full)
+
+| Metric | Value |
+|---|---|
+| Examples | 30,188 |
+| Full sequence tokens | ~4.2M |
+| Target tokens (EN translations) | ~1.0M |
+
+### Domain composition (train_full)
+
+| Domain | Examples | Share |
+|---|---|---|
+| Bible | 60,006 | 99.4% |
+| Articles (books) | 362 | 0.6% |
+| Daily text | 8 | <0.1% |
+
+The balanced training split caps Bible at 70% and brings the total to 1,233 examples (~200K tokens) for a more even domain mix. The dataset is heavily Bible-dominated because article and daily text scraping is not yet complete.
+
+---
+
+## 17. Open questions
 
 - [ ] How many WOL docIds actually have Tuvaluan translations? (Need to discover via scraping)
 - [ ] Are there additional WOL Bible translation codes beyond `nwt` for Tuvaluan?
