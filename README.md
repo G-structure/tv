@@ -20,27 +20,108 @@ Tuvaluan (ISO 639-3: `tvl`) is a Polynesian language with ~11,000 speakers. It i
 
 ---
 
-## 1. Artifact structure
+## 1. Fetching: Docker curl-impersonate + BeautifulSoup
 
-### 1.1 Directory layout
+### Why curl-impersonate is required
+
+Both `jw.org` and `wol.jw.org` perform **TLS fingerprint detection**. Standard Python HTTP clients fail:
+
+| Client | jw.org | wol.jw.org | Failure mode |
+|---|---|---|---|
+| `requests` | Timeout | Timeout | Read timeout after 30s |
+| `httpx` (HTTP/2) | StreamReset | Intermittent (works 1st request, blocks after) | `RemoteProtocolError: StreamReset error_code:2` |
+| `curl` (system) | Exit 92 | Exit 56 | HTTP/2 stream error / recv failure |
+| **Docker curl-impersonate** | **200** | **200** | **Works reliably** |
+
+The sites reset HTTP/2 streams when the TLS handshake doesn't match a known browser fingerprint. `curl-impersonate` mimics real browser TLS/HTTP handshakes, which passes the check.
+
+### Docker setup
+
+We use the pre-built Firefox Docker image (runs under Rosetta on Apple Silicon):
+
+```bash
+# Image already pulled:
+docker pull lwthiker/curl-impersonate:0.6-ff
+
+# Test:
+docker run --rm lwthiker/curl-impersonate:0.6-ff \
+  curl_ff117 -s -o /dev/null -w "HTTP %{http_code}\n" \
+  "https://www.jw.org/tvl/sitemap.xml"
+# → HTTP 200
+```
+
+The platform warning (`linux/amd64 does not match linux/arm64/v8`) is expected on Apple Silicon and does not affect functionality.
+
+### Python integration
+
+All scripts use `scripts/fetch.py`, which shells out to Docker curl-impersonate and returns HTML to BeautifulSoup:
+
+```python
+# scripts/fetch.py — shared fetcher
+import subprocess, time
+from bs4 import BeautifulSoup
+
+DOCKER_IMAGE = "lwthiker/curl-impersonate:0.6-ff"
+DOCKER_WRAPPER = "curl_ff117"
+DELAY = 2  # seconds between requests
+
+def fetch(url, timeout=30, retries=3):
+    """Fetch via Docker curl-impersonate. Returns HTML string or None."""
+    result = subprocess.run(
+        ["docker", "run", "--rm", DOCKER_IMAGE, DOCKER_WRAPPER,
+         "-s", "-L", "--max-time", str(timeout), url],
+        capture_output=True, text=True, timeout=timeout + 10,
+    )
+    return result.stdout if result.returncode == 0 else None
+
+def fetch_soup(url, parser="html5lib"):
+    html = fetch(url)
+    return BeautifulSoup(html, parser) if html else None
+```
+
+Rate limiting (2s delay) and exponential-backoff retries are built in. Raw HTML is saved to `data/raw/` for offline reprocessing.
+
+### Performance
+
+~4 seconds per chapter pair (2 fetches + parse) with Docker curl-impersonate, vs ~25 seconds with httpx when it intermittently worked. Full Bible scrape (1,189 chapters) estimated at ~80 minutes.
+
+### Other endpoints tested
+
+| Endpoint | Result |
+|---|---|
+| `b.jw-cdn.org/apis/pub-media/GETPUBMEDIALINKS` | Tuvaluan language codes `TVL`, `VL`, `TV` all return 400/404 — Tuvaluan is not in the CDN publication API |
+| `www.jw.org/en/languages/` | StreamReset — blocked like other jw.org pages |
+| Sitemap hreflang alternates | None present — 0/7,103 URLs have `<xhtml:link>` alternates |
+
+---
+
+## 2. Artifact structure
+
+### 2.1 Directory layout
 
 ```
 tv/
-├── tv2en.md                    # URL pattern reference (existing)
-├── tvenscrape.md               # This file
+├── tv2en.md                       # URL pattern reference
+├── README.md                      # This file
+├── pyproject.toml                 # uv project config
+├── curl-imp/                      # curl-impersonate setup
+│   ├── curl-impersonate/          # cloned repo
+│   ├── curl-impersonate-fetch-skill/  # Claude Code skill
+│   ├── claude-code-curl-impersonate-guide.md
+│   └── fetch-with-curl-impersonate.sh
 ├── data/
-│   ├── raw/                    # Raw scraped HTML/text (not uploaded to HF)
-│   │   ├── jw_tvl/             # JW.org Tuvaluan pages
-│   │   ├── jw_en/              # JW.org English pages
-│   │   ├── wol_tvl/            # WOL Tuvaluan pages
-│   │   └── wol_en/             # WOL English pages
-│   ├── aligned/                # Intermediate aligned pairs (JSONL)
-│   │   ├── bible_verses.jsonl  # Verse-level aligned Bible text
-│   │   ├── articles.jsonl      # Article/paragraph-level aligned text
-│   │   ├── daily_text.jsonl    # Date-keyed daily text pairs
-│   │   └── publications.jsonl  # Publication chapter pairs
-│   ├── hf_dataset/             # HuggingFace-ready Parquet files
-│   │   ├── README.md           # HF dataset card
+│   ├── raw/                       # Raw scraped HTML (not uploaded to HF)
+│   │   ├── sitemap_tvl.xml        # Full sitemap (1.1MB, 7,103 URLs)
+│   │   ├── sitemap_tvl.json       # Parsed + classified sitemap
+│   │   ├── wol_tvl/               # WOL Tuvaluan pages (bible_{bookNo}_{ch}.html)
+│   │   └── wol_en/                # WOL English pages
+│   ├── aligned/                   # Verse/paragraph-aligned pairs (JSONL)
+│   │   ├── bible_verses.jsonl     # Verse-level aligned Bible text
+│   │   ├── articles.jsonl         # Article/paragraph-level aligned text
+│   │   ├── daily_text.jsonl       # Date-keyed daily text pairs
+│   │   └── publications.jsonl     # Publication chapter pairs
+│   ├── hf_dataset/                # HuggingFace-ready Parquet files
+│   │   ├── README.md              # HF dataset card
 │   │   ├── bible/
 │   │   │   ├── train.parquet
 │   │   │   ├── validation.parquet
@@ -53,68 +134,191 @@ tv/
 │   │       ├── train.parquet
 │   │       ├── validation.parquet
 │   │       └── test.parquet
-│   └── finetune/               # LLM fine-tuning formats
-│       ├── openai_chat.jsonl   # OpenAI chat completion format
-│       ├── instruction.jsonl   # Alpaca-style instruction format
-│       └── monolingual_tvl.jsonl  # Tuvaluan-only for continued pretraining
+│   └── finetune/                  # LLM fine-tuning formats
+│       ├── openai_chat.jsonl
+│       ├── instruction.jsonl
+│       └── monolingual_tvl.jsonl
 ├── scripts/
-│   ├── scrape_sitemap.py       # Parse JW sitemap, enumerate URLs
-│   ├── scrape_bible.py         # Scrape Bible chapters (verse-aligned)
-│   ├── scrape_articles.py      # Scrape WOL articles by docId
-│   ├── scrape_daily_text.py    # Scrape date-based daily text
-│   ├── align.py                # Align scraped content into pairs
-│   ├── build_hf_dataset.py     # Convert aligned JSONL → Parquet + dataset card
-│   ├── build_finetune.py       # Convert aligned JSONL → fine-tuning formats
-│   ├── quality.py              # Quality filtering and validation
-│   └── stats.py                # Dataset statistics and reporting
+│   ├── fetch.py                   # Docker curl-impersonate fetcher (shared)
+│   ├── scrape_sitemap.py          # Parse JW sitemap, classify URLs
+│   ├── scrape_bible.py            # Scrape Bible chapters (verse-aligned)
+│   ├── scrape_articles.py         # Scrape WOL articles by docId
+│   ├── scrape_daily_text.py       # Scrape date-based daily text
+│   ├── align.py                   # Align scraped content into pairs
+│   ├── build_hf_dataset.py        # Convert aligned JSONL → Parquet
+│   ├── build_finetune.py          # Convert aligned JSONL → fine-tuning formats
+│   ├── quality.py                 # Quality filtering and validation
+│   └── stats.py                   # Dataset statistics and reporting
 └── logs/
-    ├── scrape.log              # Scraping progress/errors
-    └── alignment.log           # Alignment decisions/failures
+    ├── scrape.log
+    └── alignment.log
 ```
 
-### 1.2 Raw data storage
+### 2.2 Raw data storage
 
-Each scraped page is saved as a JSON file keyed by its alignment anchor:
+Bible chapters are saved as raw HTML files keyed by book number and chapter:
+`data/raw/wol_tvl/bible_{bookNo}_{chapter}.html`
 
-```json
-{
-  "url": "https://wol.jw.org/tvl/wol/d/r153/lp-vl/1102008070",
-  "lang": "tvl",
-  "doc_id": "1102008070",
-  "content_type": "article",
-  "title": "E ‵Tau o Faka‵malu te Fakaipoipoga",
-  "html": "<article>...</article>",
-  "text": "cleaned plain text...",
-  "paragraphs": ["paragraph 1...", "paragraph 2..."],
-  "scraped_at": "2026-03-06T00:00:00Z",
-  "http_status": 200
-}
+The parsed sitemap is saved as JSON with URL classification:
+`data/raw/sitemap_tvl.json`
+
+---
+
+## 3. Sitemap analysis (Experiment 1 — completed)
+
+The Tuvaluan sitemap contains **7,103 URLs** (significantly more than the 1,310 initially estimated from earlier sitemap retrieval attempts that timed out and returned partial results).
+
+### Category breakdown
+
+| Category | Count | Notes |
+|---|---|---|
+| magazine | 2,489 | Largest non-Bible category |
+| publication_index | 1,605 | TOC/index pages |
+| bible_chapter | 1,189 | All 66 books confirmed |
+| book | 499 | Book chapters/sections |
+| bible_index | 290 | Bible navigation pages |
+| brochure | 257 | Brochure sections |
+| song | 227 | Song pages |
+| video | 146 | Video pages (may have transcripts) |
+| program | 95 | Convention/assembly programs |
+| bible_book_toc | 66 | One per book |
+| faq | 49 | Bible Q&A pages |
+| news | 36 | News articles |
+| bible_supplement | 34 | Appendix/supplemental material |
+| about_jw | 32 | About pages |
+| study_youth | 27 | Youth study content |
+| misc_publication | 22 | Miscellaneous articles |
+| help | 17 | Help/support pages |
+| study_children | 8 | Children's content |
+| study_hub | 4 | Study landing pages |
+| study_science | 4 | Science topic pages |
+| other | 5 | Home, search, what's new, all topics |
+
+### Key finding: no hreflang alternates
+
+The sitemap contains **zero** hreflang alternate links. This means we cannot use sitemap metadata for cross-language page pairing. We must rely entirely on:
+- WOL docId swap (strongest)
+- WOL bookNo/chapter numeric alignment (Bible)
+- WOL date alignment (daily text / meetings)
+- Issue code matching (magazines)
+- URL pattern heuristics (everything else)
+
+---
+
+## 4. WOL Bible HTML structure (Experiment 2 — confirmed)
+
+The WOL Bible page structure differs from what prior scrapers (jwsoup, crawl-for-parallel-corpora) documented for jw.org. The actual structure on WOL:
+
+### Verse markup
+
+```html
+<article class="article bible html5 pub-nwt jwac showRuby ml-VL ms-ROMAN dir-ltr"
+         data-lang="VL" dir="ltr" id="article" lang="tvl">
+  <div class="scalableui">
+    <header><h1>Kenese</h1></header>
+
+    <p class="sb" data-pid="2" id="p2">
+      <span class="v" id="v1-1-1-1">
+        <span class="cl" data-vlid="vl0"><strong>1</strong> </span>
+        I te kamataga ne faite ne te Atua a te lagi
+        <a class="fn" data-fnid="1" href="...">*</a>
+        mo te lalolagi.
+        <a class="b" data-bid="1-1" href="...">+</a>
+      </span>
+    </p>
+
+    <p class="sb" data-pid="3" id="p3">
+      <span class="v" id="v1-1-2-1">
+        <span class="vl">2 </span>
+        A te lalolagi e seki foliga faka‵lei kae lavaki,...
+      </span>
+    </p>
+  </div>
+</article>
 ```
 
-For Bible content, the raw format includes verse-level segmentation:
+### Key selectors (WOL-specific, different from jw.org)
 
-```json
-{
-  "url": "https://www.jw.org/tvl/tusi/tusi-tapu/nwt/tusi/salamo/19/",
-  "lang": "tvl",
-  "book_num": 19,
-  "book_name": "salamo",
-  "chapter": 19,
-  "content_type": "bible_chapter",
-  "verses": {
-    "1": "Ko lagi e fakailoa te manuia o te Atua...",
-    "2": "Aso taki tasi e tuku atu te kupu...",
-    "...": "..."
-  },
-  "scraped_at": "2026-03-06T00:00:00Z"
-}
+| Element | Selector | Purpose |
+|---|---|---|
+| Verse span | `span.v` | Contains one verse's text (NOT `span.verse`) |
+| Verse ID | `id="v{bookNo}-{ch}-{verse}-{part}"` | Parseable verse reference |
+| Verse number | `span.vl` or `span.cl > strong` | Leading number display |
+| Footnote | `a.fn` | Remove before text extraction (NOT `a.footnoteLink`) |
+| Cross-reference | `a.b` | Remove before text extraction (NOT `a.xrefLink`) |
+| Paragraph | `p[data-pid]` | Numbered paragraph container |
+| Article root | `article#article` | Main content container |
+| Language tag | `article[data-lang="VL"]` | Confirms Tuvaluan content |
+
+### Verse ID format
+
+`v{bookNo}-{chapter}-{verse}-{part}` where:
+- bookNo: 1–66 (Genesis–Revelation)
+- chapter: chapter number
+- verse: verse number
+- part: usually 1; >1 for verses split across paragraphs (merge these)
+
+### Extraction algorithm
+
+```python
+for v_span in soup.find_all("span", class_="v"):
+    vid = v_span.get("id", "")
+    m = re.match(r"v(\d+)-(\d+)-(\d+)-(\d+)", vid)
+    verse_no = int(m.group(3))
+
+    # Remove footnotes and cross-references
+    for unwanted in v_span.find_all("a", class_=["fn", "b"]):
+        unwanted.decompose()
+    for sup in v_span.find_all("sup"):
+        sup.decompose()
+
+    text = v_span.get_text(strip=True)
+    text = re.sub(r"^\d+\s*", "", text)  # strip leading verse number
 ```
 
 ---
 
-## 2. Output formats (HuggingFace + fine-tuning)
+## 5. Bible pilot results (Experiment 2 — completed)
 
-### 2.1 HuggingFace parallel corpus (primary artifact)
+Scraped 3 chapters (Genesis 1, Psalm 19, John 3) in both Tuvaluan and English via WOL.
+
+### Results
+
+| Chapter | TVL verses | EN verses | Aligned pairs |
+|---|---|---|---|
+| Genesis 1 | 31 | 31 | 31 |
+| Psalm 19 | 15 | 15 | 15 |
+| John 3 | 36 | 36 | 36 |
+| **Total** | **82** | **82** | **82** |
+
+**100% alignment** — every verse matched 1:1.
+
+### Sample pairs
+
+| ID | Tuvaluan | English | Ratio |
+|---|---|---|---|
+| `bible_1_1_1` | I te kamataga ne faite ne te Atua a te lagimo te lalolagi. | In the beginning God created the heavens and the earth. | 1.05 |
+| `bible_19_19_0` | Ki te takitaki o te kau fai pese. Ko te pese a Tavita. | To the director. A melody of David. | 1.54 |
+| `bible_43_3_16` | (John 3:16 — full verse) | (John 3:16 — full verse) | 1.19 |
+
+### Length ratio statistics
+
+- **Average**: 1.21 (Tuvaluan text is ~21% longer than English)
+- **Range**: 0.83 – 1.64
+- **All within quality threshold** (0.3 – 3.0)
+
+This ratio is consistent with Polynesian languages, which tend to use more function words and particles than English.
+
+### Average text length
+
+- TVL: 144 chars/verse
+- EN: 121 chars/verse
+
+---
+
+## 6. Output formats (HuggingFace + fine-tuning)
+
+### 6.1 HuggingFace parallel corpus (primary artifact)
 
 **Format**: Parquet
 **Feature type**: Flat columns (not nested `Translation` feature — flat is more widely compatible and allows richer metadata)
@@ -203,7 +407,7 @@ For a low-resource language with limited data, splits must be chosen carefully:
 - **All config**: same book-based split for Bible portion; articles/daily_text/publications go to train only (too small to split further)
 - **Articles, daily_text configs**: train only (no split — not enough data)
 
-### 2.2 OpenAI chat completion format (for fine-tuning)
+### 6.2 OpenAI chat completion format (for fine-tuning)
 
 ```jsonl
 {"messages": [{"role": "system", "content": "You are a translator between Tuvaluan and English. Translate the following text accurately."}, {"role": "user", "content": "Translate from Tuvaluan to English:\n\nKo lagi e fakailoa te manuia o te Atua"}, {"role": "assistant", "content": "The heavens declare the glory of God"}]}
@@ -212,13 +416,13 @@ For a low-resource language with limited data, splits must be chosen carefully:
 
 Both directions (tvl→en and en→tvl) are generated from each pair. System prompt is kept consistent.
 
-### 2.3 Alpaca-style instruction format
+### 6.3 Alpaca-style instruction format
 
 ```jsonl
 {"instruction": "Translate the following Tuvaluan text to English.", "input": "Ko lagi e fakailoa te manuia o te Atua", "output": "The heavens declare the glory of God", "metadata": {"content_type": "bible_verse", "book_num": 19, "chapter": 19, "verse": 1}}
 ```
 
-### 2.4 Monolingual Tuvaluan (continued pretraining)
+### 6.4 Monolingual Tuvaluan (continued pretraining)
 
 Dolma-compatible JSONL for language model pretraining on Tuvaluan:
 
@@ -230,109 +434,73 @@ For monolingual, text is at the chapter or article level (not verse level) to pr
 
 ---
 
-## 3. Scraping strategy
+## 7. Scraping strategy
 
-### 3.1 Scraping priority order
+### 7.1 Scraping priority order
 
-Content types are prioritized by alignment confidence and volume:
+Content types are prioritized by alignment confidence and volume. Estimated pairs updated based on sitemap analysis (7,103 URLs):
 
 | Priority | Content type | Alignment method | Est. pairs | Confidence |
 |---|---|---|---|---|
-| 1 | Bible chapters | verse number (bookNo + chapter + verse) | ~25,000 verses | Very high |
+| 1 | Bible chapters (1,189 ch) | verse number (bookNo + chapter + verse) | ~25,000 verses | Very high |
 | 2 | WOL articles by docId | docId swap | ~500–2,000 articles | Very high |
 | 3 | Daily text | date alignment | ~365/year × N years | Very high |
-| 4 | Publications by pubCode | pubCode + chapter | ~100–500 sections | High |
-| 5 | Magazines by issue code | issue code + article position | ~100–300 articles | Medium-high |
-| 6 | Brochures/books | title slug match | ~50–200 sections | Medium |
-| 7 | FAQ/study | sitemap hreflang | ~50–100 pages | Medium |
-| 8 | News | date + region match | ~10–50 articles | Medium |
-| 9 | Songs | song number | ~150 songs | High (but lyrics, not prose) |
-| 10 | Help pages | path match | ~20–50 pages | Medium |
+| 4 | Magazines (2,489 pages) | issue code + article position | ~1,000–2,000 articles | Medium-high |
+| 5 | Books (499 pages) | pubCode + chapter / docId | ~200–500 sections | High |
+| 6 | Brochures (257 pages) | title slug / docId | ~100–300 sections | Medium |
+| 7 | FAQ/study (92 pages) | docId / slug match | ~50–100 pages | Medium |
+| 8 | Songs (227 pages) | song number | ~200 songs | High (lyrics) |
+| 9 | News (36 pages) | date + region match | ~30 articles | Medium |
+| 10 | Help (17 pages) | path match | ~15 pages | Medium |
 
-### 3.2 Scraping approach by content type
+### 7.2 Bible scraping (Priority 1)
 
-#### Bible (Priority 1)
+**Source**: WOL Bible pages (numeric bookNo URLs avoid slug mapping)
+**Script**: `scripts/scrape_bible.py`
 
-**Source**: JW.org Bible chapter pages
-**Method**:
-1. Enumerate all 66 books × chapters from the Bible book index at `jw.org/tvl/tusi/tusi-tapu/nwt/tusi-i-te-tusi-tapu/`
-2. For each chapter, fetch both Tuvaluan and English pages
-3. Parse verse-level content using CSS selector `span.verse`
-4. Remove footnotes (`a.footnoteLink`), cross-references (`a.xrefLink`), and paragraph breaks (`span.parabreak`)
-5. Align by verse number (universal across languages)
+```bash
+uv run python scripts/scrape_bible.py --pilot    # 3 chapters
+uv run python scripts/scrape_bible.py --book 1    # Genesis only
+uv run python scripts/scrape_bible.py --full      # all 66 books
+```
 
-**Tuvaluan URL**: `jw.org/tvl/tusi/tusi-tapu/nwt/tusi/{book-slug}/{chapter}/`
-**English URL**: `jw.org/en/library/bible/nwt/books/{book-slug}/{chapter}/`
-
-**Book slug mapping**: Build a lookup table from Tuvaluan book slug → WOL book number → English book slug. The WOL `binav` page provides numeric book numbers.
-
-**Alternative source**: WOL Bible pages use numeric bookNo directly:
+**URL pattern**:
 - TVL: `wol.jw.org/tvl/wol/b/r153/lp-vl/nwt/{bookNo}/{chapter}`
 - EN: `wol.jw.org/en/wol/b/r1/lp-e/nwt/{bookNo}/{chapter}`
 
-This avoids the slug mapping problem entirely.
+**Resumable**: tracks completed chapter IDs in the output JSONL; skips already-scraped chapters on restart.
 
-#### WOL articles (Priority 2)
+### 7.3 WOL articles (Priority 2)
 
-**Source**: WOL document pages
-**Method**:
-1. Harvest docIds from WOL library browse pages and publication TOCs
-2. For each docId, fetch both language versions via swap bundle
-3. Parse article content (main body text, paragraphs)
-4. Align at paragraph level by position within the document
-
-**Tuvaluan URL**: `wol.jw.org/tvl/wol/d/r153/lp-vl/{docId}`
-**English URL**: `wol.jw.org/en/wol/d/r1/lp-e/{docId}`
+**Source**: WOL document pages by docId
+**Script**: `scripts/scrape_articles.py` (planned)
 
 **DocId harvesting sources**:
 - Publication TOC pages: `wol.jw.org/tvl/wol/publication/r153/lp-vl/{pubCode}`
 - Library browse: `wol.jw.org/tvl/wol/library/r153/lp-vl/tusi-katoa`
 - Links found in other scraped pages
 
-#### Daily text (Priority 3)
+### 7.4 Daily text (Priority 3)
 
 **Source**: WOL daily text pages
-**Method**:
-1. Enumerate dates over a known range (e.g., 2020-01-01 to 2026-03-05)
-2. Fetch both language versions
-3. Align by date (universal key)
+**Script**: `scripts/scrape_daily_text.py` (planned)
 
-**Tuvaluan URL**: `wol.jw.org/tvl/wol/h/r153/lp-vl/{yyyy}/{m}/{d}`
-**English URL**: `wol.jw.org/en/wol/h/r1/lp-e/{yyyy}/{m}/{d}`
+**URL pattern**:
+- TVL: `wol.jw.org/tvl/wol/h/r153/lp-vl/{yyyy}/{m}/{d}`
+- EN: `wol.jw.org/en/wol/h/r1/lp-e/{yyyy}/{m}/{d}`
 
-### 3.3 HTML parsing details
+### 7.5 Rate limiting and politeness
 
-Based on existing JW.org scrapers (jwsoup, crawl-for-parallel-corpora):
-
-**Bible pages**:
-- Content container: `<span class="verse">` contains verse text
-- Verse numbers: `<sup>` or `<span class="verseNum">` within verse spans
-- Remove before extracting text:
-  - `a.footnoteLink` — footnote references
-  - `a.xrefLink` — cross-references
-  - `span.parabreak` — paragraph break markers
-
-**WOL article pages**:
-- Content is in the main article body (semantic HTML5 `<article>` or similar container)
-- Paragraphs are standard `<p>` elements
-- Numbered paragraphs may have `data-pid` attributes
-
-**Parser**: BeautifulSoup4 with `html5lib` backend (handles malformed HTML gracefully)
-
-### 3.4 Rate limiting and politeness
-
-- **Delay**: 1–2 seconds between requests
+- **Delay**: 2 seconds between requests (built into `fetch.py`)
 - **Respect robots.txt**: Avoid disallowed paths (`/choose-language`, query params like `contentLanguageFilter`)
-- **User-Agent**: Identify as a research crawler
-- **Batch by language**: Scrape all Tuvaluan pages first, then all English pages (reduces interleaving load)
-- **Cache**: Store raw HTML locally to avoid re-fetching
-- **Resume**: Track progress in a state file; support resumption after interruption
+- **Cache**: Raw HTML saved locally — never re-fetch a page already on disk
+- **Resume**: Progress tracked by checking existing output IDs
 
 ---
 
-## 4. Alignment strategy
+## 8. Alignment strategy
 
-### 4.1 Alignment levels
+### 8.1 Alignment levels
 
 | Level | Use case | Method |
 |---|---|---|
@@ -341,7 +509,7 @@ Based on existing JW.org scrapers (jwsoup, crawl-for-parallel-corpora):
 | Document | Short articles, FAQ | Whole document as one unit |
 | Date | Daily text, meetings | Calendar date |
 
-### 4.2 Paragraph alignment for articles
+### 8.2 Paragraph alignment for articles
 
 For articles aligned by docId, paragraph-level alignment uses position matching:
 
@@ -350,7 +518,7 @@ For articles aligned by docId, paragraph-level alignment uses position matching:
 3. If counts differ: use length-ratio heuristics and fall back to document-level alignment
 4. Flag mismatched documents for manual review
 
-### 4.3 Quality filtering
+### 8.3 Quality filtering
 
 After alignment, apply quality filters:
 
@@ -363,7 +531,7 @@ After alignment, apply quality filters:
 | Min length | Drop if either side < 10 characters | Too short to be useful |
 | Max length | Truncate at 4096 characters per side | Practical limit for most models |
 
-### 4.4 Alignment confidence scoring
+### 8.4 Alignment confidence scoring
 
 Each pair gets a confidence score based on:
 
@@ -377,9 +545,9 @@ Each pair gets a confidence score based on:
 
 ---
 
-## 5. Quality considerations
+## 9. Quality considerations
 
-### 5.1 Domain bias
+### 9.1 Domain bias
 
 JW content is predominantly religious text. This creates a well-known domain bias:
 
@@ -392,14 +560,14 @@ JW content is predominantly religious text. This creates a well-known domain bia
 - The `content_type` column distinguishes Bible from magazine from FAQ etc.
 - Users should be warned in the dataset card that this is religious-domain data
 
-### 5.2 Translation directionality
+### 9.2 Translation directionality
 
 Most JW content is originally written in English and translated into Tuvaluan. This means:
 - The Tuvaluan text may exhibit "translationese" (English-influenced syntax)
 - For training tvl→en models, this is fine (translationese source → natural target)
 - For training en→tvl models, the "natural" Tuvaluan target may itself be unnatural
 
-### 5.3 Deduplication
+### 9.3 Deduplication
 
 Religious texts contain significant repetition (cross-references, repeated phrases, liturgical formulas). Deduplication strategy:
 - **Exact dedup**: Hash-based on concatenated `tvl+en` text
@@ -408,126 +576,118 @@ Religious texts contain significant repetition (cross-references, repeated phras
 
 ---
 
-## 6. Scraping experiments log
+## 10. Experiments log
 
-### Experiment 1: Sitemap enumeration
+### Experiment 1: Sitemap enumeration — DONE
 
-**Goal**: Parse `jw.org/tvl/sitemap.xml` and enumerate all 1,310 Tuvaluan URLs.
+**Goal**: Parse `jw.org/tvl/sitemap.xml` and enumerate all Tuvaluan URLs.
 
-**Method**: Fetch sitemap XML, extract all `<loc>` entries, classify by URL pattern (Bible, article, magazine, etc.) using regex classifiers from `tv2en.md` section 10.
+**Method**: Fetched sitemap via Docker curl-impersonate (1.1MB XML), parsed all `<loc>` entries, classified by URL pattern using regex classifiers from `tv2en.md` section 10.
 
-**Status**: Pending
+**Result**: **7,103 URLs** classified into 25 categories. No hreflang alternates present. See section 3 above for full breakdown.
+
+**Output**: `data/raw/sitemap_tvl.xml`, `data/raw/sitemap_tvl.json`
 
 ---
 
-### Experiment 2: Bible verse extraction (pilot)
+### Experiment 2: Bible verse extraction (pilot) — DONE
 
 **Goal**: Scrape 3 Bible chapters (Genesis 1, Psalm 19, John 3) in both Tuvaluan and English. Verify verse-level alignment works.
 
-**Method**:
-1. Fetch WOL Bible pages: `wol.jw.org/{lang}/wol/b/{rCode}/{lpCode}/nwt/{bookNo}/{chapter}`
-2. Parse verse content with BeautifulSoup
-3. Align by verse number
-4. Output to `data/aligned/bible_verses.jsonl`
+**Method**: Fetched WOL Bible pages via Docker curl-impersonate, parsed with BeautifulSoup (html5lib), extracted verses via `span.v` elements, aligned by verse number.
 
-**Status**: Pending
+**Result**: **82/82 verses aligned** (100%). TVL/EN length ratio avg 1.21 (range 0.83–1.64). See section 5 above for details.
+
+**Output**: `data/aligned/bible_verses.jsonl` (82 pairs)
 
 ---
 
-### Experiment 3: WOL article extraction (pilot)
+### Experiment 3: WOL article extraction (pilot) — PENDING
 
 **Goal**: Scrape 5 WOL articles by docId in both languages. Verify paragraph alignment works.
 
-**Method**:
-1. Pick 5 known docIds (e.g., `1102008070`, `1102015820`)
-2. Fetch both language versions
-3. Extract paragraphs
-4. Align by position
-5. Output to `data/aligned/articles.jsonl`
-
-**Status**: Pending
-
 ---
 
-### Experiment 4: Daily text extraction (pilot)
+### Experiment 4: Daily text extraction (pilot) — PENDING
 
 **Goal**: Scrape 7 consecutive daily texts in both languages. Verify date alignment works.
 
-**Method**:
-1. Enumerate 2025-01-01 to 2025-01-07
-2. Fetch WOL daily text pages for both languages
-3. Extract text content
-4. Align by date
-5. Output to `data/aligned/daily_text.jsonl`
+---
 
-**Status**: Pending
+### Experiment 5: Full Bible scrape — PENDING
+
+**Goal**: Scrape entire NWT Bible (all 66 books, 1,189 chapters) in both languages.
+
+**Depends on**: Experiment 2 (verified)
+
+**Estimated time**: ~80 minutes (4s/chapter × 1,189 chapters × 2 languages)
 
 ---
 
-### Experiment 5: Full Bible scrape
-
-**Goal**: Scrape entire NWT Bible (all 66 books, all chapters) in both languages.
-
-**Depends on**: Experiment 2 results (verify parsing works)
-
-**Status**: Pending
-
----
-
-### Experiment 6: Full docId harvest + article scrape
+### Experiment 6: Full docId harvest + article scrape — PENDING
 
 **Goal**: Harvest all accessible docIds from WOL library browse pages, then scrape all articles in both languages.
 
-**Depends on**: Experiment 3 results (verify article parsing works)
-
-**Status**: Pending
+**Depends on**: Experiment 3
 
 ---
 
-### Experiment 7: Dataset assembly
+### Experiment 7: Dataset assembly — PENDING
 
 **Goal**: Combine all aligned data into HuggingFace Parquet files with proper splits, metadata, and dataset card.
 
-**Depends on**: Experiments 5 + 6 completion
-
-**Status**: Pending
+**Depends on**: Experiments 5 + 6
 
 ---
 
-## 7. Tools and dependencies
+## 11. Tools and dependencies
 
+### Python (managed with uv)
+
+```toml
+# pyproject.toml
+[project]
+dependencies = [
+    "beautifulsoup4",
+    "html5lib",
+    "httpx[http2]",  # kept as fallback; primary fetching via Docker
+    "lxml",
+    "requests",      # kept as fallback
+    "tqdm",
+]
 ```
-python >= 3.10
-requests          # HTTP fetching
-beautifulsoup4    # HTML parsing
-html5lib          # HTML5 parser backend
-lxml              # Fast XML parsing (for sitemaps)
-pandas            # Data manipulation
-pyarrow           # Parquet file creation
-datasets          # HuggingFace datasets library
-lingua-py         # Language detection (quality filtering)
-tqdm              # Progress bars
+
+```bash
+uv add pandas pyarrow datasets lingua-py  # add when needed for dataset assembly
 ```
 
----
+### System dependencies
 
-## 8. Estimated dataset size
-
-| Content type | Est. pairs | Avg chars/pair | Est. total chars |
-|---|---|---|---|
-| Bible verses | ~25,000 | ~200 | ~5M |
-| WOL articles | ~500–2,000 | ~500 | ~0.5M–1M |
-| Daily text | ~1,000–2,000 | ~300 | ~0.3M–0.6M |
-| Publications | ~100–500 | ~1,000 | ~0.1M–0.5M |
-| Magazines | ~100–300 | ~500 | ~0.05M–0.15M |
-| Other | ~100–300 | ~300 | ~0.03M–0.09M |
-| **Total** | **~27,000–30,000** | — | **~6M–7.5M chars** |
-
-This is a small but valuable dataset — comparable to other low-resource parallel corpora used for MT research.
+- **Docker Desktop** — required for curl-impersonate
+- **Docker image**: `lwthiker/curl-impersonate:0.6-ff` (Firefox 117 fingerprint, linux/amd64 via Rosetta on Apple Silicon)
+- **Python 3.14** via Homebrew
 
 ---
 
-## 9. HuggingFace upload plan
+## 12. Estimated dataset size
+
+Updated estimates based on sitemap analysis (7,103 URLs vs original 1,310 estimate):
+
+| Content type | Sitemap URLs | Est. pairs | Avg chars/pair | Est. total chars |
+|---|---|---|---|---|
+| Bible verses | 1,189 chapters | ~25,000 | ~265 (confirmed) | ~6.6M |
+| Magazines | 2,489 pages | ~1,000–2,000 | ~500 | ~0.5M–1M |
+| Books | 499 pages | ~200–500 | ~1,000 | ~0.2M–0.5M |
+| Brochures | 257 pages | ~100–300 | ~500 | ~0.05M–0.15M |
+| Songs | 227 pages | ~200 | ~200 | ~0.04M |
+| WOL articles (docId) | N/A (harvest needed) | ~500–2,000 | ~500 | ~0.25M–1M |
+| Daily text | N/A (date range) | ~1,000–2,000 | ~300 | ~0.3M–0.6M |
+| Other (FAQ, news, etc.) | ~344 pages | ~100–300 | ~300 | ~0.03M–0.09M |
+| **Total** | **7,103+** | **~28,000–32,000** | — | **~8M–10M chars** |
+
+---
+
+## 13. HuggingFace upload plan
 
 1. Create dataset repo: `{username}/tuvaluan-english-parallel-jw`
 2. Upload Parquet files organized by config
@@ -543,12 +703,20 @@ This is a small but valuable dataset — comparable to other low-resource parall
 
 ---
 
-## 10. Open questions
+## 14. Answered questions
 
-- [ ] Does the JW.org Tuvaluan sitemap include hreflang alternates? (Would enable high-confidence JW.org page pairing without WOL)
-- [ ] What is the exact `wtlocale` value for Tuvaluan `open` links? (`TVL` vs `VL`)
+- [x] **Does the JW.org Tuvaluan sitemap include hreflang alternates?** No — 0/7,103 URLs have alternates. Must use WOL-based alignment.
+- [x] **What is the WOL Bible verse HTML structure?** `span.v` with `id="v{bookNo}-{ch}-{verse}-{part}"`, footnotes as `a.fn`, cross-refs as `a.b`. Different from jw.org's `span.verse` / `a.footnoteLink` / `a.xrefLink`.
+- [x] **Does the CDN publication API support Tuvaluan?** No — language codes TVL, VL, TV all return 400/404.
+- [x] **Can standard Python HTTP clients access JW.org/WOL?** No — TLS fingerprint detection blocks requests, httpx, and system curl. Docker curl-impersonate required.
+- [x] **How many Tuvaluan pages exist?** 7,103 (not 1,310 as initially estimated from partial sitemap).
+- [x] **What is the TVL/EN length ratio for Bible text?** Average 1.21 (TVL ~21% longer), range 0.83–1.64.
+
+## 15. Open questions
+
 - [ ] How many WOL docIds actually have Tuvaluan translations? (Need to discover via scraping)
 - [ ] Are there additional WOL Bible translation codes beyond `nwt` for Tuvaluan?
 - [ ] What date range of daily text content exists in Tuvaluan?
 - [ ] Should songs/lyrics be included or excluded? (Different text type; may confuse MT models)
 - [ ] Should we include a Tokelauan subset as a related-language augmentation?
+- [ ] What is the exact `wtlocale` value for Tuvaluan `open` links? (`TVL` vs `VL`)

@@ -30,11 +30,11 @@ These are the "swap bundle" I'd use mechanically when mapping Tuvaluan WOL → E
 | Region code | `r153` | `r1` |
 | Language-pack code | `lp-vl` | `lp-e` |
 | `wtlocale` (finder) | `VL` | `E` |
-| `wtlocale` (open) | `TVL` (uncertain; might also be `VL`) | `E` |
+| `wtlocale` (open) | `VL` | `E` |
 
 **Notes:**
 - WOL's `finder` entry for Tuvaluan is confirmed with `wtlocale=VL` and direct Tuvaluan doc IDs in public finder URLs.
-- `open?wtlocale=TVL` is still *uncertain*; I'd treat it as "likely" but keep the pairing confidence lower until you see a live Tuvaluan `open` example.
+- `open?wtlocale=VL` is **confirmed** — returns 302 to the correct Tuvaluan page. `wtlocale=TVL` incorrectly resolves to the English page.
 
 ### Stable publication/issue/section tokens (shared across languages) (CONFIRMED/LIKELY)
 
@@ -52,8 +52,7 @@ These are the "swap bundle" I'd use mechanically when mapping Tuvaluan WOL → E
 ## 2. Seed URLs
 
 - **JW robots/sitemap index (CONFIRMED):** `https://www.jw.org/robots.txt` (contains `Sitemap: https://www.jw.org/sitemap.xml`)
-- **Tuvaluan sitemap (UNCERTAIN due to timeouts in retrieval):** `https://www.jw.org/tvl/sitemap.xml`
-  - Your draft says "last modified 2026-03-03" and "1,310 URLs." I can't confirm the exact `<lastmod>`/count from the public tool retrieval yet; keep as "likely."
+- **Tuvaluan sitemap (CONFIRMED):** `https://www.jw.org/tvl/sitemap.xml` — fetched successfully (1.2MB response)
 - **Tuvaluan JW.org home (CONFIRMED):** `https://www.jw.org/tvl/`
 - **WOL Tuvaluan home-style entry (CONFIRMED):** the WOL doc patterns for Tuvaluan exist; you can also treat `/wol/h/r153/lp-vl/{date}` as predictable landing patterns
 - **WOL English home-style entry (CONFIRMED):** `https://wol.jw.org/en/wol/h/r1/lp-e/{date}` exists and works with the confirmed swap bundle
@@ -375,11 +374,11 @@ These are the "swap bundle" I'd use mechanically when mapping Tuvaluan WOL → E
 
 **Key point:** `finder` is one of the strongest ways to "join" an otherwise unaligned slug, because `docid` is cross-language stable.
 
-### P. JW.org — `open` resolver (CONFIRMED for English; UNCERTAIN for Tuvaluan)
+### P. JW.org — `open` resolver (CONFIRMED)
 - Pattern: `https://www.jw.org/open?docid={docid}&wtlocale={locale}`
 - English: confirmed with `wtlocale=E`
-- Tuvaluan: likely `TVL` (uncertain); might also accept `VL`
-- Strategy: if you can't confirm Tuvaluan open, don't hard-code it; keep it a "try both locales" rule.
+- Tuvaluan: confirmed with `wtlocale=VL` (returns 302 to correct Tuvaluan page)
+- **Warning:** `wtlocale=TVL` does NOT work for Tuvaluan — it resolves to the English page instead. Always use `VL`.
 
 ---
 
@@ -506,10 +505,10 @@ These are the "swap bundle" I'd use mechanically when mapping Tuvaluan WOL → E
 - `/tvl/molimau-a-ieova/…` ↔ `/en/jehovahs-witnesses/…`
 - Validate with a few known pages; don't fully automate without spot checks.
 
-### Heuristic 10 (finder/open locale swap) — **medium-high**
+### Heuristic 10 (finder/open locale swap) — **high**
 - Hard anchor: `docid`
 - Swap locale: `VL` ↔ `E`
-- Tuvaluan `open` locale: `TVL` is plausible but not confirmed; treat as "try both."
+- Both `finder` and `open` resolvers confirmed with `wtlocale=VL` for Tuvaluan. Do not use `TVL`.
 
 ### Heuristic 11 (JW Bible via WOL) — **fallback**
 - Because book slugs localize (e.g., `salamo` vs `psalms`), use WOL bookNo + chapter to align reliably
@@ -538,7 +537,7 @@ These are the "swap bundle" I'd use mechanically when mapping Tuvaluan WOL → E
 | JW magazines | `.../tvl/tusi/mekesini/{issue}/` | `.../en/library/magazines/{issue}/` | High | issue stable |
 | JW songs | `.../{songbook}/{num}-.../` | `.../{songbook}/{num}-.../` | High | song number stable |
 | JW finder | `https://www.jw.org/finder?…&wtlocale=VL` | `https://www.jw.org/finder?…&wtlocale=E` | High | docid shared |
-| JW open | `jw.org/open?docid={id}&wtlocale=TVL/VL` | `jw.org/open?docid={id}&wtlocale=E` | Medium | locale uncertain |
+| JW open | `jw.org/open?docid={id}&wtlocale=VL` | `jw.org/open?docid={id}&wtlocale=E` | Very high | locale confirmed |
 
 ---
 
@@ -732,7 +731,7 @@ NWT Bible chapters covering Genesis through Revelation.
 ## 15. Coverage gaps / open questions
 
 * JW sitemap retrieval timing out: counts/`<lastmod>`/hreflang alternate data for `/tvl/sitemap.xml` are still uncertain in this write-up.
-* Tuvaluan `open` `wtlocale` token: likely `TVL` but not confirmed; you may need to "try VL or TVL" as a rule.
+* ~~Tuvaluan `open` `wtlocale` token~~: **resolved** — confirmed as `VL`. `TVL` resolves to English; do not use it.
 * Tuvaluan bc/dx pages exist by pattern, but some of them may not exist in Tuvaluan; confirm with live checks before assuming symmetry.
 * **Category slug mapping** between `jw.org/tvl/tusi/…` and `jw.org/en/library/…` is not fully confirmed; Tuvaluan uses a mix of localized and English slugs.
 * **Full WOL library browse hierarchy** (`tusi-katoa/…` vs `all-publications/…`) needs exhaustive enumeration for a perfect slug mapping.

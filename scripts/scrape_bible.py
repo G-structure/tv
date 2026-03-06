@@ -1,32 +1,29 @@
 """Scrape WOL Bible chapters and extract verse-aligned parallel text.
 
+Uses Docker curl-impersonate for fetching (browser-like TLS fingerprint).
+
 Usage:
     uv run python scripts/scrape_bible.py --pilot    # 3 chapters pilot
     uv run python scripts/scrape_bible.py --full      # all 66 books
+    uv run python scripts/scrape_bible.py --book 1    # single book
 """
 
 import re
 import sys
 import json
-import time
 import argparse
 from pathlib import Path
 
-import httpx
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+
+# Add scripts dir to path for fetch module
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from fetch import fetch, fetch_and_save
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 RAW_DIR = DATA_DIR / "raw"
 ALIGNED_DIR = DATA_DIR / "aligned"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
-}
 
 # WOL URL templates — bookNo and chapter are numeric, universal across languages
 WOL_BIBLE_URL = "https://wol.jw.org/{lang}/wol/b/{rcode}/{lpcode}/nwt/{book_no}/{chapter}"
@@ -66,26 +63,6 @@ PILOT_CHAPTERS = [
     (43, 3),  # John 3
 ]
 
-DELAY = 3  # seconds between requests
-
-
-def fetch_page(client: httpx.Client, url: str, max_retries: int = 3) -> str | None:
-    """Fetch a page with retries and exponential backoff."""
-    for attempt in range(max_retries):
-        try:
-            r = client.get(url)
-            if r.status_code == 200:
-                return r.text
-            elif r.status_code == 404:
-                return None
-            else:
-                print(f"  HTTP {r.status_code} for {url}", file=sys.stderr)
-        except Exception as e:
-            wait = DELAY * (2 ** attempt)
-            print(f"  Retry {attempt+1}/{max_retries} after {wait}s: {e}", file=sys.stderr)
-            time.sleep(wait)
-    return None
-
 
 def extract_verses(html: str) -> dict[int, str]:
     """Extract verse number → text mapping from a WOL Bible chapter page.
@@ -103,7 +80,6 @@ def extract_verses(html: str) -> dict[int, str]:
 
     for v_span in soup.find_all("span", class_="v"):
         vid = v_span.get("id", "")
-        # Parse verse number from id: v{book}-{ch}-{verse}-{part}
         m = re.match(r"v(\d+)-(\d+)-(\d+)-(\d+)", vid)
         if not m:
             continue
@@ -112,17 +88,15 @@ def extract_verses(html: str) -> dict[int, str]:
         # Remove footnotes and cross-references before extracting text
         for unwanted in v_span.find_all("a", class_=["fn", "b"]):
             unwanted.decompose()
-        # Remove superscripts that are just markers
         for sup in v_span.find_all("sup"):
             sup.decompose()
 
         text = v_span.get_text(strip=True)
-        # Remove the leading verse number (e.g., "1 " or "23 ")
+        # Remove the leading verse number
         text = re.sub(r"^\d+\s*", "", text)
         text = re.sub(r"\s+", " ", text).strip()
 
         if text:
-            # Merge multi-part verses (same verse number, different part)
             if verse_no in verses:
                 verses[verse_no] += " " + text
             else:
@@ -131,34 +105,25 @@ def extract_verses(html: str) -> dict[int, str]:
     return verses
 
 
-def scrape_chapter(client: httpx.Client, book_no: int, chapter: int,
-                   book_name: str) -> dict | None:
+def scrape_chapter(book_no: int, chapter: int, book_name: str) -> dict | None:
     """Scrape a single chapter in both languages and return aligned verses."""
     tvl_url = WOL_BIBLE_URL.format(book_no=book_no, chapter=chapter, **TVL_BUNDLE)
     en_url = WOL_BIBLE_URL.format(book_no=book_no, chapter=chapter, **EN_BUNDLE)
 
+    raw_tvl_path = str(RAW_DIR / "wol_tvl" / f"bible_{book_no}_{chapter}.html")
+    raw_en_path = str(RAW_DIR / "wol_en" / f"bible_{book_no}_{chapter}.html")
+
     # Fetch Tuvaluan
-    time.sleep(DELAY)
-    tvl_html = fetch_page(client, tvl_url)
+    tvl_html = fetch_and_save(tvl_url, raw_tvl_path)
     if tvl_html is None:
         print(f"  SKIP {book_name} {chapter} — TVL not found")
         return None
 
-    # Save raw HTML
-    raw_tvl = RAW_DIR / "wol_tvl" / f"bible_{book_no}_{chapter}.html"
-    raw_tvl.parent.mkdir(parents=True, exist_ok=True)
-    raw_tvl.write_text(tvl_html)
-
     # Fetch English
-    time.sleep(DELAY)
-    en_html = fetch_page(client, en_url)
+    en_html = fetch_and_save(en_url, raw_en_path)
     if en_html is None:
         print(f"  SKIP {book_name} {chapter} — EN not found")
         return None
-
-    raw_en = RAW_DIR / "wol_en" / f"bible_{book_no}_{chapter}.html"
-    raw_en.parent.mkdir(parents=True, exist_ok=True)
-    raw_en.write_text(en_html)
 
     # Extract verses
     tvl_verses = extract_verses(tvl_html)
@@ -236,44 +201,56 @@ def main():
 
     # Load existing data to support resume
     existing_ids = set()
+    existing_chapters = set()
     if output_file.exists():
         with open(output_file) as f:
             for line in f:
                 row = json.loads(line)
                 existing_ids.add(row["id"])
-        print(f"Found {len(existing_ids)} existing aligned pairs, will skip duplicates")
+                # Extract chapter key from pair id: "bible_{book}_{ch}_{verse}" -> "{book}_{ch}"
+                parts = row["id"].split("_")
+                if len(parts) >= 4:
+                    existing_chapters.add(f"{parts[1]}_{parts[2]}")
+        print(f"Found {len(existing_ids)} existing aligned pairs "
+              f"({len(existing_chapters)} chapters), will skip duplicates")
 
-    client = httpx.Client(http2=True, headers=HEADERS, timeout=30, follow_redirects=True)
-
-    total_pairs = 0
+    total_new_pairs = 0
+    total_pairs_cumulative = len(existing_ids)
     skipped = 0
+    failed = 0
 
     with open(output_file, "a") as out:
         for book_no, chapter, book_name in tqdm(chapters_to_scrape, desc="Scraping"):
-            # Check if already done
-            test_id = f"bible_{book_no}_{chapter}_1"
-            if test_id in existing_ids:
+            chapter_key = f"{book_no}_{chapter}"
+            if chapter_key in existing_chapters:
                 skipped += 1
                 continue
 
-            result = scrape_chapter(client, book_no, chapter, book_name)
+            result = scrape_chapter(book_no, chapter, book_name)
             if result is None:
+                failed += 1
                 continue
 
+            chapter_new = 0
             for pair in result["pairs"]:
                 if pair["id"] not in existing_ids:
                     out.write(json.dumps(pair, ensure_ascii=False) + "\n")
-                    total_pairs += 1
+                    total_new_pairs += 1
+                    chapter_new += 1
                     existing_ids.add(pair["id"])
+                    total_pairs_cumulative += 1
+
+            existing_chapters.add(chapter_key)
 
             tqdm.write(f"  {book_name} {chapter}: "
                        f"{result['tvl_verses']} TVL / {result['en_verses']} EN → "
-                       f"{result['aligned_pairs']} pairs")
+                       f"{result['aligned_pairs']} pairs "
+                       f"[cumulative: {total_pairs_cumulative} total, "
+                       f"{total_new_pairs} new]")
 
-    client.close()
-
-    print(f"\nDone! {total_pairs} new pairs written ({skipped} chapters skipped)")
-    print(f"Total pairs in {output_file}: {len(existing_ids)}")
+    print(f"\nDone! {total_new_pairs} new pairs written "
+          f"({skipped} chapters skipped, {failed} failed)")
+    print(f"Total pairs in {output_file}: {total_pairs_cumulative}")
 
 
 if __name__ == "__main__":

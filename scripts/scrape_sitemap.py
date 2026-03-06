@@ -6,17 +6,14 @@ import json
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import requests
+# Add scripts dir to path for fetch module
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from fetch import fetch
 
 SITEMAP_URL = "https://www.jw.org/tvl/sitemap.xml"
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 OUTPUT_FILE = OUTPUT_DIR / "sitemap_tvl.json"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
-}
+SITEMAP_CACHE = OUTPUT_DIR / "sitemap_tvl.xml"
 
 # URL classifiers from tv2en.md section 10
 CLASSIFIERS = [
@@ -84,12 +81,24 @@ def parse_sitemap(xml_text: str) -> list[dict]:
 
 
 def main():
-    print(f"Fetching {SITEMAP_URL}...")
-    resp = requests.get(SITEMAP_URL, headers=HEADERS, timeout=30)
-    resp.raise_for_status()
-    print(f"Got {len(resp.text)} bytes, status {resp.status_code}")
+    # Use cached XML if available
+    if SITEMAP_CACHE.exists() and SITEMAP_CACHE.stat().st_size > 0:
+        print(f"Reading cached sitemap from {SITEMAP_CACHE}")
+        xml_text = SITEMAP_CACHE.read_text()
+    else:
+        print(f"Fetching {SITEMAP_URL}...")
+        xml_text = fetch(SITEMAP_URL)
+        if xml_text is None:
+            print("ERROR: Failed to fetch sitemap. Check Docker curl-impersonate.")
+            sys.exit(1)
+        # Save raw XML to disk for caching
+        SITEMAP_CACHE.parent.mkdir(parents=True, exist_ok=True)
+        SITEMAP_CACHE.write_text(xml_text)
+        print(f"Saved raw XML to {SITEMAP_CACHE}")
 
-    entries = parse_sitemap(resp.text)
+    print(f"Got {len(xml_text)} bytes")
+
+    entries = parse_sitemap(xml_text)
     print(f"Parsed {len(entries)} URLs")
 
     # Classify and count

@@ -78,11 +78,30 @@ def fetch_soup(url: str, parser: str = "html5lib", **kwargs) -> BeautifulSoup | 
 
 
 def fetch_and_save(url: str, filepath: str, **kwargs) -> str | None:
-    """Fetch a URL, save the raw HTML to a file, and return the HTML."""
+    """Fetch a URL, save the raw HTML to a file, and return the HTML.
+
+    If the file already exists and is non-empty, reads from disk instead
+    of re-fetching (resume support).
+    """
     from pathlib import Path
+    p = Path(filepath)
+    if p.exists() and p.stat().st_size > 0:
+        return p.read_text()
     html = fetch(url, **kwargs)
     if html is not None:
-        p = Path(filepath)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(html)
     return html
+
+
+def fetch_many(urls: list[str], desc: str = "Fetching") -> list[tuple[str, str | None]]:
+    """Fetch multiple URLs with progress bar. Returns list of (url, html_or_none).
+
+    Rate limiting is handled by fetch() internally.
+    """
+    from tqdm import tqdm
+    results = []
+    for url in tqdm(urls, desc=desc):
+        html = fetch(url)
+        results.append((url, html))
+    return results
