@@ -43,6 +43,10 @@ PILOT_DOCIDS = [
 DOCID_RE = re.compile(r"/wol/d/r\d+/lp-\w+/(\d+)")
 # Regex for section sub-pages within a publication
 SECTION_RE = re.compile(r"/wol/publication/r153/lp-vl/([^/]+)/\d+")
+# Regex for library sub-pages
+LIBRARY_RE = re.compile(r"/wol/library/r153/lp-vl/")
+
+WOL_BASE = "https://wol.jw.org"
 
 
 def harvest_docids_from_pub(pub_code: str) -> list[str]:
@@ -106,6 +110,116 @@ def harvest_docids_from_pub(pub_code: str) -> list[str]:
 
     print(f"  Harvested {len(unique_ids)} unique docIds from {pub_code}")
     return unique_ids
+
+
+def harvest_docids_from_library(url: str, max_depth: int = 5,
+                                _visited: set | None = None) -> list[str]:
+    """Recursively crawl WOL library pages to harvest all docIds.
+
+    Follows /wol/library/ sub-page links and /wol/publication/ links,
+    collecting all /wol/d/ docId links found.
+    """
+    if _visited is None:
+        _visited = set()
+
+    if url in _visited or max_depth <= 0:
+        return []
+    _visited.add(url)
+
+    html = fetch(url)
+    if html is None:
+        return []
+
+    soup = BeautifulSoup(html, "html5lib")
+    article = soup.find("article", id="article") or soup
+
+    doc_ids = []
+    sub_pages = []
+    pub_pages = []
+
+    for a_tag in article.find_all("a", href=True):
+        href = a_tag["href"]
+
+        # Direct docId link
+        m = DOCID_RE.search(href)
+        if m:
+            doc_ids.append(m.group(1))
+            continue
+
+        # Library sub-page (same category)
+        if LIBRARY_RE.search(href) and href not in _visited:
+            full_url = WOL_BASE + href if href.startswith("/") else href
+            if full_url not in _visited:
+                sub_pages.append(full_url)
+            continue
+
+        # Publication TOC page
+        m = SECTION_RE.search(href)
+        if m:
+            full_url = WOL_BASE + href if href.startswith("/") else href
+            if full_url not in _visited:
+                pub_pages.append(full_url)
+
+    # Crawl library sub-pages recursively
+    for sub_url in sub_pages:
+        sub_ids = harvest_docids_from_library(sub_url, max_depth - 1, _visited)
+        doc_ids.extend(sub_ids)
+
+    # Crawl publication TOC pages (these have docId links directly)
+    for pub_url in pub_pages:
+        if pub_url in _visited:
+            continue
+        _visited.add(pub_url)
+        pub_html = fetch(pub_url)
+        if pub_html is None:
+            continue
+        pub_soup = BeautifulSoup(pub_html, "html5lib")
+        pub_article = pub_soup.find("article", id="article")
+        if pub_article is None:
+            continue
+        for a_tag in pub_article.find_all("a", href=True):
+            m = DOCID_RE.search(a_tag["href"])
+            if m:
+                doc_ids.append(m.group(1))
+
+    # Deduplicate while preserving order
+    seen = set()
+    unique_ids = []
+    for did in doc_ids:
+        if did not in seen:
+            seen.add(did)
+            unique_ids.append(did)
+
+    return unique_ids
+
+
+def harvest_all_library() -> list[str]:
+    """Harvest docIds from all categories in the WOL library."""
+    categories = [
+        ("Watchtower", "faleleoleo-maluga"),
+        ("Awake!", "ala-mai"),
+        ("Books", "tusi"),
+        ("Meeting", "tusi-mō-fakatasiga"),
+        ("Ministry", "te-tou-galuega-talai"),
+        ("Brochures", "polosiua-ki-te-tamā-tusi"),
+    ]
+
+    all_ids = []
+    seen = set()
+    visited_urls = set()
+
+    for name, slug in categories:
+        url = f"{WOL_BASE}/tvl/wol/library/r153/lp-vl/tusi-katoa/{slug}"
+        print(f"\nCrawling {name} ({slug})...")
+        ids = harvest_docids_from_library(url, max_depth=5, _visited=visited_urls)
+        new_ids = [d for d in ids if d not in seen]
+        for d in new_ids:
+            seen.add(d)
+        all_ids.extend(new_ids)
+        print(f"  {name}: {len(new_ids)} new docIds ({len(ids)} total found)")
+
+    print(f"\nTotal unique docIds across all categories: {len(all_ids)}")
+    return all_ids
 
 
 def is_metadata_paragraph(text: str) -> bool:
@@ -301,6 +415,10 @@ def main():
                         help="Harvest docIds from publication TOC (e.g., 'lv')")
     parser.add_argument("--docids", nargs="+",
                         help="Specific docIds to scrape")
+    parser.add_argument("--library", action="store_true",
+                        help="Crawl entire WOL library (all categories)")
+    parser.add_argument("--library-cat", type=str,
+                        help="Crawl a single library category by slug")
     args = parser.parse_args()
 
     pub_code = None
@@ -308,6 +426,20 @@ def main():
     if args.pilot:
         doc_ids = PILOT_DOCIDS
         pub_code = "lv"
+    elif args.library:
+        doc_ids = harvest_all_library()
+        if not doc_ids:
+            print("No docIds found in library")
+            sys.exit(1)
+    elif args.library_cat:
+        slug = args.library_cat
+        url = f"{WOL_BASE}/tvl/wol/library/r153/lp-vl/tusi-katoa/{slug}"
+        print(f"Crawling library category: {slug}")
+        doc_ids = harvest_docids_from_library(url)
+        if not doc_ids:
+            print(f"No docIds found for category '{slug}'")
+            sys.exit(1)
+        print(f"Found {len(doc_ids)} docIds")
     elif args.pub:
         pub_code = args.pub
         doc_ids = harvest_docids_from_pub(pub_code)
@@ -317,7 +449,7 @@ def main():
     elif args.docids:
         doc_ids = args.docids
     else:
-        print("Specify --pilot, --pub <code>, or --docids <id1> <id2> ...")
+        print("Specify --pilot, --pub <code>, --docids, --library, or --library-cat <slug>")
         sys.exit(1)
 
     ALIGNED_DIR.mkdir(parents=True, exist_ok=True)

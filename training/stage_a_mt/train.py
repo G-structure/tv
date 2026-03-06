@@ -47,6 +47,7 @@ DEFAULTS: dict[str, Any] = {
     "seed": 17,
     "do_final_val_loss": False,
     "val_every": None,  # defaults to save_every; set 0 to disable periodic val
+    "val_max_examples": None,  # subsample validation set for periodic checks; None = full
 }
 
 
@@ -221,8 +222,11 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
             and global_step > 0
             and global_step % val_every == 0
         ):
+            val_subset = val_dataset
+            if cfg["val_max_examples"] and len(val_dataset) > cfg["val_max_examples"]:
+                val_subset = val_dataset.select(range(cfg["val_max_examples"]))
             val_nll = _mean_val_loss(
-                dataset=val_dataset,
+                dataset=val_subset,
                 renderer=renderer,
                 training_client=training_client,
                 batch_size=cfg["batch_size"],

@@ -60,7 +60,8 @@ def flatten_train_config(raw_config: dict) -> dict:
 
     # Training hyperparams
     for key in ("lora_rank", "max_length", "batch_size", "learning_rate",
-                "epochs", "save_every", "seed", "train_on_what", "ttl_seconds"):
+                "epochs", "save_every", "val_every", "val_max_examples",
+                "seed", "train_on_what", "ttl_seconds"):
         if key in training_sec:
             config[key] = training_sec[key]
 
