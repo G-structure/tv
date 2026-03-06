@@ -602,41 +602,50 @@ Religious texts contain significant repetition (cross-references, repeated phras
 
 ---
 
-### Experiment 3: WOL article extraction (pilot) — PENDING
-
-**Goal**: Scrape 5 WOL articles by docId in both languages. Verify paragraph alignment works.
-
----
-
-### Experiment 4: Daily text extraction (pilot) — PENDING
-
-**Goal**: Scrape 7 consecutive daily texts in both languages. Verify date alignment works.
-
----
-
-### Experiment 5: Full Bible scrape — PENDING
+### Experiment 3: Full Bible scrape — DONE
 
 **Goal**: Scrape entire NWT Bible (all 66 books, 1,189 chapters) in both languages.
 
-**Depends on**: Experiment 2 (verified)
+**Result**: **30,838 verse pairs** across all 66 books, 1,189 chapters. 0 failures. 2 transient DNS errors recovered via retry. 5 extreme ratios (up to 4.814) from Polynesian verse boundary differences — affects 0.016% of pairs.
 
-**Estimated time**: ~80 minutes (4s/chapter × 1,189 chapters × 2 languages)
-
----
-
-### Experiment 6: Full docId harvest + article scrape — PENDING
-
-**Goal**: Harvest all accessible docIds from WOL library browse pages, then scrape all articles in both languages.
-
-**Depends on**: Experiment 3
+**Output**: `data/aligned/bible_verses.jsonl`
 
 ---
 
-### Experiment 7: Dataset assembly — PENDING
+### Experiment 4: Full article scrape — DONE
+
+**Goal**: Harvest docIds from all Tuvaluan publications on WOL, scrape articles in both languages with paragraph alignment.
+
+**Publications scraped**: lv, bh, bt, lff, kr, jy, wt, my, bhs, lvs, sjj, snnw (12 publications)
+
+**Result**: **18,629 article paragraph pairs** (after quality filtering). Paragraph-level alignment by `data-pid` with document-level fallback for mismatched structures.
+
+**Quality filtering applied**:
+- Removed chapter headers ("CHAPTER N" / "MATAUPU E N")
+- Removed copyright/credits/metadata paragraphs
+- Removed pairs with both sides < 20 chars
+- Removed pairs with extreme ratios (<0.15 or >7.0)
+- Deduplicated by content hash
+
+**Output**: `data/aligned/articles.jsonl`
+
+---
+
+### Experiment 5: Daily text scrape — DONE
+
+**Goal**: Scrape daily text in both languages for all available years.
+
+**Result**: **1,160 daily text pairs** (2022–2025). Each page returns ~3 consecutive days; script optimizes by extracting adjacent dates from the same fetch.
+
+**Output**: `data/aligned/daily_text.jsonl`
+
+---
+
+### Experiment 6: Dataset assembly — PENDING
 
 **Goal**: Combine all aligned data into HuggingFace Parquet files with proper splits, metadata, and dataset card.
 
-**Depends on**: Experiments 5 + 6
+**Depends on**: Experiments 3–5 (completed)
 
 ---
 
@@ -669,21 +678,29 @@ uv add pandas pyarrow datasets lingua-py  # add when needed for dataset assembly
 
 ---
 
-## 12. Estimated dataset size
+## 12. Dataset size (actual)
 
-Updated estimates based on sitemap analysis (7,103 URLs vs original 1,310 estimate):
-
-| Content type | Sitemap URLs | Est. pairs | Avg chars/pair | Est. total chars |
+| Content type | Pairs | Avg TVL chars | Avg EN chars | Median ratio |
 |---|---|---|---|---|
-| Bible verses | 1,189 chapters | ~25,000 | ~265 (confirmed) | ~6.6M |
-| Magazines | 2,489 pages | ~1,000–2,000 | ~500 | ~0.5M–1M |
-| Books | 499 pages | ~200–500 | ~1,000 | ~0.2M–0.5M |
-| Brochures | 257 pages | ~100–300 | ~500 | ~0.05M–0.15M |
-| Songs | 227 pages | ~200 | ~200 | ~0.04M |
-| WOL articles (docId) | N/A (harvest needed) | ~500–2,000 | ~500 | ~0.25M–1M |
-| Daily text | N/A (date range) | ~1,000–2,000 | ~300 | ~0.3M–0.6M |
-| Other (FAQ, news, etc.) | ~344 pages | ~100–300 | ~300 | ~0.03M–0.09M |
-| **Total** | **7,103+** | **~28,000–32,000** | — | **~8M–10M chars** |
+| Bible verses | 30,838 | 183 | 153 | 1.19 |
+| Article paragraphs | 18,629 | 240 | 199 | 1.19 |
+| Daily text | 1,160 | 447 | 384 | 1.18 |
+| **Total** | **50,627** | **205** | **170** | **1.19** |
+
+Quality profile:
+- 0 empty text pairs, 0 duplicates, 0 very short (<10 char) pairs
+- 78.9% of pairs in ideal 1.0–1.5 length ratio range
+- 30 extreme ratios remaining (genuine cross-language boundary differences)
+
+### Remaining content (not yet scraped)
+
+| Content type | Sitemap URLs | Est. pairs |
+|---|---|---|
+| Magazines | 2,489 pages | ~1,000–2,000 |
+| Brochures | 257 pages | ~100–300 |
+| Songs | 227 pages | ~200 |
+| FAQ/study | 92 pages | ~50–100 |
+| News | 36 pages | ~30 |
 
 ---
 
@@ -781,44 +798,32 @@ Notable ties:
 
 ## 16. Current dataset token counts
 
-> **Snapshot as of March 5, 2026 9:26 PM PST.** Data gathering is still in progress — these numbers will grow as more content types (magazines, books, brochures, songs, etc.) are scraped.
+> **Snapshot as of March 5, 2026.** Token estimates use the ~4 chars/token approximation.
 
-Token estimates use the ~4 chars/token approximation. "Full sequence" includes system prompt + user instruction + assistant response; "target only" is just the assistant (translation) output.
+### By domain
 
-### By split
+| Domain | Pairs | TVL chars | EN chars | Est. TVL tokens | Est. EN tokens |
+|---|---|---|---|---|---|
+| Bible | 30,838 | 5.6M | 4.7M | ~1.4M | ~1.2M |
+| Articles (books) | 18,629 | 4.5M | 3.7M | ~1.1M | ~0.9M |
+| Daily text | 1,160 | 519K | 445K | ~130K | ~111K |
+| **Total** | **50,627** | **10.6M** | **8.9M** | **~2.7M** | **~2.2M** |
 
-| Split | Examples | Full sequence tokens | Target tokens |
-|---|---|---|---|
-| train_full | 60,376 | ~8.4M | ~2.2M |
-| train_balanced | 1,233 | ~200K | ~59K |
-| validation | 42 | ~6.6K | ~1.9K |
-| test | 334 | ~57K | ~18K |
-
-### TVL→EN direction (train_full)
+### For fine-tuning (both directions)
 
 | Metric | Value |
 |---|---|
-| Examples | 30,188 |
-| Full sequence tokens | ~4.2M |
-| Target tokens (EN translations) | ~1.0M |
-
-### Domain composition (train_full)
-
-| Domain | Examples | Share |
-|---|---|---|
-| Bible | 60,006 | 99.4% |
-| Articles (books) | 362 | 0.6% |
-| Daily text | 8 | <0.1% |
-
-The balanced training split caps Bible at 70% and brings the total to 1,233 examples (~200K tokens) for a more even domain mix. The dataset is heavily Bible-dominated because article and daily text scraping is not yet complete.
+| Training examples (×2 directions) | ~101,254 |
+| Full sequence tokens (with prompts) | ~12M |
+| Target tokens only | ~4.9M |
 
 ---
 
 ## 17. Open questions
 
-- [ ] How many WOL docIds actually have Tuvaluan translations? (Need to discover via scraping)
+- [x] How many WOL docIds actually have Tuvaluan translations? — 12 publications harvested, yielding 18,629 paragraph pairs
+- [x] What date range of daily text content exists in Tuvaluan? — 2022–2025 (1,160 pairs); earlier years return empty pages
+- [x] What is the exact `wtlocale` value for Tuvaluan `open` links? — `VL` (not `TVL`, which resolves to English)
 - [ ] Are there additional WOL Bible translation codes beyond `nwt` for Tuvaluan?
-- [ ] What date range of daily text content exists in Tuvaluan?
 - [ ] Should songs/lyrics be included or excluded? (Different text type; may confuse MT models)
 - [ ] Should we include a Tokelauan subset as a related-language augmentation?
-- [ ] What is the exact `wtlocale` value for Tuvaluan `open` links? (`TVL` vs `VL`)

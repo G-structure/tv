@@ -108,11 +108,32 @@ def harvest_docids_from_pub(pub_code: str) -> list[str]:
     return unique_ids
 
 
+def is_metadata_paragraph(text: str) -> bool:
+    """Detect boilerplate paragraphs (chapter headers, copyright, credits, TOC)."""
+    t = text.strip()
+    # Chapter/section headers: "CHAPTER 7", "MATAUPU E 7", "SECTION 3", etc.
+    if re.match(r"^(CHAPTER|MATAUPU\s+E|SECTION|PART)\s+\d+$", t, re.IGNORECASE):
+        return True
+    # Copyright lines
+    if re.match(r"^©\s*\d{4}", t):
+        return True
+    # Photo credits
+    if t.lower().startswith("photo credit"):
+        return True
+    # Page/chapter index lines like "236Mataupu Fakaopoopo" or "PAGECHAPTER"
+    if re.match(r"^\d+[A-Z]", t) and len(t) < 40:
+        return True
+    if t in ("PAGECHAPTER", "MATAUPUTE ITULAU"):
+        return True
+    return False
+
+
 def extract_paragraphs(html: str) -> list[tuple[str, str]]:
     """Extract (data-pid, text) tuples from article paragraphs.
 
     Scoped to article#article to avoid footnote panel paragraphs.
     Removes footnotes (a.fn), cross-refs (a.b), and superscripts (sup).
+    Filters out metadata paragraphs (chapter headers, copyright, credits).
     """
     soup = BeautifulSoup(html, "html5lib")
     article = soup.find("article", id="article")
@@ -132,7 +153,7 @@ def extract_paragraphs(html: str) -> list[tuple[str, str]]:
         text = p_tag.get_text(strip=True)
         text = re.sub(r"\s+", " ", text).strip()
 
-        if text:
+        if text and not is_metadata_paragraph(text):
             paragraphs.append((pid, text))
 
     return paragraphs
@@ -202,6 +223,17 @@ def align_paragraphs(tvl_paras: list[tuple[str, str]],
             en_text = en_dict[pid]
             tvl_chars = len(tvl_text)
             en_chars = len(en_text)
+
+            # Skip very short pairs (headers, page numbers, etc.)
+            if tvl_chars < 20 and en_chars < 20:
+                continue
+
+            # Skip extreme ratio pairs (likely pid misalignment)
+            if en_chars > 0:
+                ratio = tvl_chars / en_chars
+                if ratio < 0.15 or ratio > 7.0:
+                    continue
+
             pairs.append({
                 "id": f"article_{doc_id}_p{pid}",
                 "tvl": tvl_text,
