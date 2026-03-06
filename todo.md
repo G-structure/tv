@@ -79,3 +79,42 @@ Most issues above are already handled by `build_tinker_mt_data.py` quality filte
 The data builder rejects pairs where either side is < 10 chars (`too_short: 30` rejections), which catches most of these. A few borderline ones (exactly 9 chars) slip through.
 
 **Action:** No action needed — quality filter handles this. The threshold of 10 chars is reasonable.
+
+## Known issues to address
+
+7. ### Name hallucination
+
+The Stage A adapter was trained on JW.org data where names are always
+transliterated (Ieova↔Jehovah, Iesu↔Jesus). When it encounters unfamiliar
+names, it hallucinates JW-style transliterations:
+
+- "Tausa" → "Taʹhosh"
+- "Nukufetau" → "Nuk·phatʹta"
+
+Prompt engineering does not fix this — it's baked into the weights.
+
+**Fix**: Augment Stage A training data with ~1,000 synthetic name-preservation
+pairs (Tuvaluan place names, personal names in simple sentence templates) and
+retrain. Football articles will then provide ongoing reinforcement since every
+article contains dozens of proper nouns that must be copied verbatim.
+
+8. ### Domain vocabulary gap
+
+Football-specific terms (penalty, offside, midfielder, VAR) have no Tuvaluan
+equivalents in the training data. The adapter may produce awkward paraphrases
+or hallucinated translations. Two strategies:
+
+1. **Loanword preservation**: Keep English football terms as loanwords in
+   Tuvaluan output (common practice in Pacific languages for sports terms)
+2. **Post-training glossary**: Build a football term glossary and use it as
+   few-shot context in the translation prompt
+
+9. ### Quality filtering
+
+Not all translated output will be usable. Apply the same quality filters used
+for the JW.org parallel corpus:
+
+- Minimum character length per side
+- Length ratio filtering (reject extreme ratios)
+- Duplicate detection
+- Metadata detection (headers, footers, navigation text)
