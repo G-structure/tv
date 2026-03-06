@@ -1,0 +1,12 @@
+# curl-impersonate build artifacts
+curl-imp/curl-impersonate/build/
+curl-imp/curl-impersonate/.git/
+
+# macOS
+.DS_Store
+
+# Claude Code
+.claude/
+data
+curl-imp/curl-impersonate
+logs
