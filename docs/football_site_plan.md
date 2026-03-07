@@ -1382,41 +1382,74 @@ const CATEGORIES: Record<string, string[]> = {
 
 ## Development phases
 
-### Phase 1 — MVP (week 1-2)
+### Phase 1 — MVP (week 1-2) DONE
 
-- [ ] SolidStart project scaffolding with Turso DB
-- [ ] Goal.com scraper (sitemap + `__NEXT_DATA__` extraction)
-- [ ] Translation pipeline (Tinker `/completions` endpoint)
-- [ ] Homepage with article cards (TVL title + EN title)
-- [ ] Article page with side-by-side view
-- [ ] Manual cron trigger (run scrapers via API route)
-- [ ] Deploy to Cloudflare Pages
+- [x] SolidStart project scaffolding with SQLite (local dev, Turso deferred)
+- [x] Goal.com scraper (sitemap + `__NEXT_DATA__` extraction)
+- [x] FIFA.com scraper (CXM API two-step fetch)
+- [x] Sky Sports scraper (JSON-LD extraction)
+- [x] Translation pipeline (Tinker `/completions` endpoint)
+- [x] Homepage with article cards (TVL title + EN subtitle)
+- [x] Article page with bilingual paragraphs + language toggle (TV/EN/TV+EN)
+- [x] Category mapping and filter navigation (pills)
+- [x] Mobile-responsive layout
+- [x] Article hero images from sources
+- [x] Source attribution and linking
+- [ ] Deploy to Cloudflare Pages (deferred)
 
-### Phase 2 — full pipeline (week 3)
+### Phase 2 — community RL features (2026-03-07) DONE
 
-- [ ] FIFA.com scraper (CXM API)
-- [ ] Sky Sports scraper (JSON-LD extraction)
-- [ ] Automated cron jobs (fetch every 30min, translate every 15min)
-- [ ] Category mapping and filter navigation
-- [ ] Language toggle (TVL / EN / side-by-side)
-- [ ] Mobile-responsive layout
+- [x] Fix HTML entities in scrapers (`html.unescape()`) + one-time DB migration
+- [x] Real pagination on homepage and category pages (query-param based)
+- [x] 404 page ("Seki kitea") with Tuvaluan text
+- [x] Paragraph flag `[?]` button on each TVL paragraph (fires POST /api/feedback)
+- [x] Implicit signal tracking: reveal, share, flag (fires POST /api/signal)
+- [x] Island selector modal on first visit (9 islands + diaspora, localStorage)
+- [x] Te Fatele community dashboard (`/fatele`) with island progress bars
+- [x] Sticky footer teaser linking to `/fatele` with live signal count
+- [x] API routes: POST /api/feedback, POST /api/signal, GET /api/stats
+- [x] `feedback` and `implicit_signals` DB tables with indexes
 
-### Phase 3 — polish (week 4)
+### Phase 3 — polish (next)
 
-- [ ] Article image support (hero images from sources)
 - [ ] Search functionality
 - [ ] RSS feed output (in Tuvaluan)
-- [ ] Source attribution and linking
+- [ ] Service Worker / offline support (outer islands have intermittent connectivity)
 - [ ] Error monitoring and retry logic for failed translations
 - [ ] Rate limit handling and backoff
+- [ ] A/B preference interstitial (needs variant generation infrastructure)
+- [ ] Name guardian prompt (needs NER comparison)
 
 ### Phase 4 — growth
 
+- [ ] Deploy (Cloudflare Pages + Turso / Vercel)
+- [ ] Automated cron jobs (fetch every 30min, translate every 15min)
 - [ ] Add more sources (Guardian if licensed, ESPN if policy changes)
-- [ ] Community feedback on translation quality
 - [ ] Glossary system for football terms (loanwords vs translated terms)
 - [ ] Retrain Stage A adapter with name-preservation augmentation
-- [ ] User-submitted corrections to improve translation quality over time
+- [ ] Tufuga o te Gagana (Language Experts) elevated contributor role
+
+## Known issues (2026-03-07)
+
+### Translation quality: degenerate repetition
+
+Some articles have degenerate repetitive translations where the model output
+loops a phrase hundreds of times (e.g. "fakatauavaga i te lotou taimi" repeated
+for the entire body). This is a model output quality issue from the Stage A
+adapter, not a site bug. Observed primarily on longer Sky Sports articles.
+
+**Mitigation:** This is exactly the kind of problem the `[?]` flag button is
+designed to surface. Future work should add a quality filter that detects
+repetitive translations (e.g. n-gram repetition ratio > threshold) and either
+flags them for re-translation or falls back to showing English only.
+
+### Feedback FK constraint
+
+The `feedback` table has a `REFERENCES articles(id)` foreign key constraint.
+The `implicit_signals` table does not (by design — signals may reference
+articles that get deleted). The feedback API will return 500 if called with
+a non-existent article_id. This is correct behavior for production but means
+testing with fake IDs requires using a real article ID from the DB.
 
 ## Environment variables
 
