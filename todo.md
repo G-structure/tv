@@ -121,9 +121,9 @@ for the JW.org parallel corpus:
 
 10. ### Model collapse in football translation pipeline
 
-**Status:** Detection + hiding implemented. Root cause identified. Fix pending.
+**Status:** Detection + hiding + article cleaning DONE. Existing translations still collapsed — need re-translation.
 
-**Stats:** 31/56 translations (55%) flagged as collapsed.
+**Stats:** 41/56 translations (73%) flagged as collapsed. 0/145 articles have promo artifacts.
 
 #### Root cause analysis
 
@@ -131,10 +131,9 @@ Three factors drive collapse, in order of impact:
 
 **1. Single-paragraph body (primary cause — 72% collapse rate)**
 
-All 25 Sky Sports articles have `paragraph_count=1` because Sky's HTML has no
-`<p>` tags — the scraper's `split_paragraphs()` falls back to `\n\n`-splitting
-and finds nothing, so the entire 500-1800 word body is sent as a single chunk.
-With `MAX_TOKENS=512`, the model can't finish the translation and loops.
+All 25 Sky Sports articles had `paragraph_count=1` because the scraper used
+JSON-LD `articleBody` which dumps everything as a single text blob. With
+`MAX_TOKENS=512`, the model can't finish the translation and loops.
 
 - paras=1 articles: 18/25 collapsed (72%)
 - paras>1 articles: 13/31 collapsed (42%)
@@ -146,58 +145,52 @@ With `MAX_TOKENS=512`, the model can't finish the translation and loops.
 
 The Tinker model was trained on JW.org religious/educational text. Football
 jargon, TV guide listings, subscription pricing, and pop culture content
-("Ted Lasso", "Fubo Review") are maximally out of domain. The model has no
-anchoring vocabulary and resorts to repetitive paraphrasing.
-
-Collapse rate by content type:
-- Football match analysis: ~60% collapse
-- TV/streaming guides: ~50% collapse (mixed — short ones survive)
-- FIFA World Cup articles: ~15% collapse (closer to training domain: formal, informational)
-- Player interviews: ~20% collapse (narrative structure similar to training data)
+("Ted Lasso", "Fubo Review") are maximally out of domain.
 
 **3. Text length (correlated with #1)**
 
-Longer articles collapse more, but this is confounded by #1 — long articles
-from Sky are all single-paragraph. Among multi-paragraph articles, length
-alone is not a strong predictor.
+Longer articles collapse more, but confounded by #1. Among multi-paragraph
+articles, length alone is not a strong predictor.
 
-Collapse rate by EN word count:
-- 0-200 words: 29%
-- 200-400: 53%
-- 400-600: 43%
-- 600-800: 67%
-- 800-1000: 62%
-- 1000+: 69%
-
-#### Detection system
+#### Detection system (DONE)
 
 Implemented in `scripts/detect_collapse.py`. Multi-signal approach:
 1. Whole-text 4-gram uniqueness ratio (threshold < 0.3)
 2. Max single 4-gram frequency (threshold > 0.4)
-3. Tail collapse: last 80 words checked with 3-gram and 4-gram (catches mid-text degeneration)
+3. Tail collapse: last 80 words checked with 3-gram and 4-gram
 4. Per-paragraph collapse (catches one bad paragraph diluted by good ones)
-5. Dominant n-gram check (any phrase > 10% of tail)
+5. Sliding window: 100-word windows with stride 50 (catches mid-text zones)
+6. Repeated phrase: 5-8 word phrases repeated 8+ times
 
 The `is_collapsed` flag in `translations` table hides affected articles on the
 site via `CASE WHEN t.is_collapsed = 1 THEN NULL` in the SQL query.
 
-#### Fixes to implement
+#### Article body cleaning (DONE)
 
-1. **Fix Sky Sports paragraph splitting** — Sky uses `<br>` tags or bare
-   newlines instead of `<p>` tags. Update `split_paragraphs()` to handle this.
-   This alone should cut collapse rate from 55% to ~25%.
+Implemented in `scripts/clean_article_bodies.py`:
+- **Sky**: switched scraper to HTML body (`div.sdc-article-body > p`) instead
+  of JSON-LD. Regex cleanup for Got Sky/Not got Sky/push notifications/app
+  download/highlights/fixtures CTAs. 22/25 Sky articles now have proper paragraphs.
+- **Goal**: HTML-level stripping of READ MORE, Instagram embeds, iframes. Regex
+  cleanup for NordVPN, subscribe CTAs, VPN boilerplate, ad markers, hashtags.
+- **FIFA**: NBSP/BOM/narrow space normalization.
+- **Common**: whitespace normalization + sentence-boundary paragraph splitting.
+- Migration result: 0/145 articles have promo artifacts (was ~95 before cleaning).
+
+#### Remaining fixes
+
+1. **Re-translate collapsed articles** — existing translations were made from
+   dirty single-blob text. With cleaned/paragraphed source, re-run
+   `translate_football.py` on all 41 collapsed articles.
 
 2. **Increase MAX_TOKENS** — 512 is too low for even single paragraphs of
    200+ words. Increase to 1024 or 2048 (check Tinker API limits).
 
-3. **Add sentence-level chunking fallback** — if a paragraph exceeds ~100
-   words, split on sentence boundaries before translating. Reassemble after.
-
-4. **Domain-specific prompt tuning** — add football glossary terms to the
+3. **Domain-specific prompt tuning** — add football glossary terms to the
    system prompt. Instruct the model to preserve loanwords for terms without
    Tuvaluan equivalents.
 
-5. **Temperature + retry is already implemented** — 3 attempts with
+4. **Temperature + retry is already implemented** — 3 attempts with
    temperature escalation (0.0 → 0.3 → 0.7). All attempts saved to
    `translation_attempts` table for RL training.
 
