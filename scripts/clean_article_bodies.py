@@ -22,30 +22,36 @@ DB_PATH = Path(__file__).resolve().parent.parent / "data" / "football" / "footba
 # ---------------------------------------------------------------------------
 
 _SKY_GOT_SKY = re.compile(
-    r"Got Sky\? Watch[^\n]*?[\U0001F4F1\U0001F4FA]",
-    re.DOTALL,
+    r"Got Sky\?[\s\n]*Watch[^\n]*?(?:[\U0001F4F1\U0001F4FA]|no contract|$)",
+    re.MULTILINE,
 )
 _SKY_NOT_GOT = re.compile(
-    r"(?:Not got Sky|No Sky)\? (?:Get Sky Sports|Get instant access|Stream your EFL team)[^\n]*?[\U0001F4FA]?",
-    re.DOTALL,
+    r"(?:Not got Sky|No Sky)\?[^\n]*?(?:[\U0001F4FA]|NOW[^\n]*|$)",
+    re.MULTILINE,
 )
 _SKY_PUSH_NOTIF = re.compile(
     r"Choose the Sky Sports push notifications you want!?\s*\U0001F514?",
 )
 _SKY_DOWNLOAD_APP = re.compile(
-    r"Download the Sky Sports app[^.]*",
+    r"Download the Sky Sports app[^.\n]*",
 )
 _SKY_FREE_HIGHLIGHTS = re.compile(
-    r"(?:Watch )?FREE [A-Za-z\s]+ (?:PL |Premier League )?highlights\u25B6\uFE0F?",
+    r"(?:Watch )?(?:FREE|free) [A-Za-z\s]+ (?:PL |Premier League )?highlights[\u25B6\uFE0F]*",
+)
+_SKY_WATCH_STREAM = re.compile(
+    r"(?:Watch|Stream) (?:free |the )?Premier League[^\n]*(?:NOW|Sky Sports)[^\n]*",
+)
+_SKY_LIVE_FOOTBALL = re.compile(
+    r"Live football on Sky Sports[^\n]*",
 )
 _SKY_NEWS_TRANSFERS = re.compile(
     r"[A-Z][A-Za-z\s]+ news & transfers\u26AA?\s*\|?\s*[A-Z][A-Za-z\s]+ fixtures & scores",
 )
 _SKY_FIXTURES_SCORES = re.compile(
-    r"[A-Z][A-Za-z\s]{2,30} fixtures & scores(?:\s*\|[^|.]*)?",
+    r"[A-Z][A-Za-z\s]{2,30} (?:fixtures & scores|table)(?:\s*\|[^|\n.]*)*",
 )
 _SKY_LIVE_TABLE = re.compile(
-    r"Live Premier League table\s*\|[^.]*",
+    r"Live Premier League table\s*\|[^.\n]*",
 )
 _SKY_WHATSAPP = re.compile(
     r"Get more EFL to your phone with WhatsApp",
@@ -59,6 +65,8 @@ def clean_sky_body(text: str) -> str:
     text = _SKY_PUSH_NOTIF.sub("", text)
     text = _SKY_DOWNLOAD_APP.sub("", text)
     text = _SKY_FREE_HIGHLIGHTS.sub("", text)
+    text = _SKY_WATCH_STREAM.sub("", text)
+    text = _SKY_LIVE_FOOTBALL.sub("", text)
     text = _SKY_NEWS_TRANSFERS.sub("", text)
     text = _SKY_LIVE_TABLE.sub("", text)
     text = _SKY_WHATSAPP.sub("", text)
@@ -96,6 +104,21 @@ _GOAL_AD = re.compile(
     r"^Ad \|[^\n]*$",
     re.MULTILINE,
 )
+_GOAL_SIGNUP_CTA = re.compile(
+    r"^(?:Watch|Stream|Start|Get) .+?(?:Sign up(?: now| today)?|Get NordVPN)$",
+    re.MULTILINE,
+)
+_GOAL_GET_NORDVPN = re.compile(
+    r"^Get NordVPN$",
+    re.MULTILINE,
+)
+_GOAL_SIGNUP_ONLY = re.compile(
+    r"^Sign up(?: now| today)?$",
+    re.MULTILINE,
+)
+_GOAL_NORDVPN_PITCH = re.compile(
+    r"(?:NordVPN\s*is our pick for the best VPN[^.]*\.|You can even try NordVPN[^.]*\.)",
+)
 _GOAL_HASHTAGS = re.compile(
     r"(?:#\w+){2,}",
 )
@@ -109,6 +132,10 @@ def clean_goal_body(text: str) -> str:
     text = _GOAL_VPN_BOILERPLATE.sub("", text)
     text = _GOAL_BEST_DEALS.sub("", text)
     text = _GOAL_AD.sub("", text)
+    text = _GOAL_SIGNUP_CTA.sub("", text)
+    text = _GOAL_GET_NORDVPN.sub("", text)
+    text = _GOAL_SIGNUP_ONLY.sub("", text)
+    text = _GOAL_NORDVPN_PITCH.sub("", text)
     text = _GOAL_HASHTAGS.sub("", text)
     return text
 
