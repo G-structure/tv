@@ -257,6 +257,81 @@ bash scripts/bootstrap_tinker.sh
 export TINKER_API_KEY=...
 ```
 
+## Dataset documentation currently in repo
+
+Current docs covering dataset and collection work:
+
+- `README.md`: project plan, crawler constraints, alignment methodology, and experiment log for collection.
+- `docs/SCRAPING_PLAYBOOK.md`: **step-by-step reproduction guide** for all data collection (scripts, commands, troubleshooting).
+- `docs/DATASET_COLLECTION_AND_ML_PIPELINE.md`: dataset schema, alignment contracts, quality gates, and Stage A/B data lineage.
+- `tv2en.md`: URL mapping and cross-language pairing notes used by scraping/alignment.
+- `docs/TVL_EN_TINKER_PLAN.md`: staged training strategy, model choices, and open TODOs for synthetic loaders.
+- `docs/SELECTIVE_TRANSLATION_SPEC.md`: how selective translation preserves code/JSON/tool structure.
+- `docs/TRAINING_PIPELINE.md`: current runnable pipeline and config references.
+
+## Data collection + ML dataset lineage (single source of truth)
+
+This repo separates collection and ML dataset layers:
+
+1. Raw content:
+   - `data/raw/wol_tvl/*.html` — cached Tuvaluan HTML pages
+   - `data/raw/wol_en/*.html` — cached English HTML pages
+   - `data/raw/sitemap_tvl.xml`, `data/raw/sitemap_tvl.json` — parsed sitemap
+2. Canonical aligned en<->TVL pairs (309,700 total raw pairs):
+   - `data/aligned/bible_verses.jsonl` — 30,838 verse pairs (all 66 books)
+   - `data/aligned/articles.jsonl` — 275,430 paragraph pairs (7,255 docIds)
+   - `data/aligned/daily_text.jsonl` — 3,432 daily text pairs (2017-2025)
+3. Stage A MT chat datasets:
+   - `data/finetune/stage_a_mt/*.jsonl`
+4. Stage B source pools and synthetic TVL:
+   - `data/finetune/stage_b_sources/english_normalized/*.jsonl` (when built)
+   - `data/finetune/stage_b_synthetic_tvl/accepted/*.jsonl` (when built)
+   - `data/finetune/stage_b_synthetic_tvl/rejected/*.jsonl`
+5. Stage B mixed dataset:
+   - `data/finetune/stage_b_mix/*.jsonl` (when built)
+
+Important: in this checkout, Stage A artifacts may need rebuild after the full scrape completed (309k pairs vs earlier ~50k snapshot). Stage B artifacts are not yet created.
+
+## Stage A metadata contract (what is copied vs added)
+
+Each aligned row from `data/aligned` contributes all source metadata forward into Stage A training rows via
+`metadata`:
+
+- inherited unchanged (examples): `id`, `tvl`, `en`, `content_type`, `domain`,
+  `alignment_method`, `alignment_confidence`, `doc_id`, `source_url_tvl`,
+  `source_url_en`, `book_num`, `book_name`, `chapter`, `verse`, `date`,
+  `pub_code`, `tvl_chars`, `en_chars`, `length_ratio`
+- added in Stage A build step:
+  - `direction`: `en_to_tvl` or `tvl_to_en`
+  - `source_lang`, `target_lang`
+  - `template_idx` (which prompt template was sampled)
+
+Stage A output row shape (`schema`):
+- `id`
+- `messages` (system/user/assistant chat turn)
+- `metadata` (above + generated fields)
+
+Rejection telemetry in Stage A is written to `rejected.jsonl` and summarized in `stats.json`. Rejection reasons currently observed include:
+`too_short`, `too_long`, `bad_length_ratio`, `low_alignment_confidence`, `duplicate_pair`, and `empty_text`.
+
+## Split logic by data regime
+
+- Bible: split by held-out books
+  - validation: book nums [31,63,64] by default
+  - test: book nums [8,57,65] by default
+- Articles: split by `doc_id`
+- Daily text: split by `date`
+- Everything else: deterministic hash split using `content/doc/date` group keys
+
+## Current quality/sanity gates that matter for ML behavior
+
+- `min_confidence` (usually `0.8`)
+- `min_chars` / `max_chars` (usually `10` / `4096`)
+- `ratio_min` / `ratio_max` (usually `0.4` / `2.5`)
+- deterministic dedupe by normalized text hash on the aligned pair
+- optional `allow_low_confidence_articles` override for document-level article rows
+- `train_balanced` applies `bible_max_train_share` (default `0.70`) to reduce sermon-style bias
+
 ## Quick Start Runbook
 
 ### Stage A: Translation Adapter

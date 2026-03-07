@@ -18,6 +18,10 @@ Tuvaluan (ISO 639-3: `tvl`) is a Polynesian language with ~11,000 speakers. It i
 - **FLORES+**: Meta's MT evaluation benchmark (200+ languages). May include Tuvaluan evaluation sentences.
 - **jwsoup**: Python package for scraping JW Bible content (pip installable).
 
+For a single practical map of dataset/datacollection docs, and exact pair/split contracts for the active pipeline, see:
+
+- [docs/DATASET_COLLECTION_AND_ML_PIPELINE.md](docs/DATASET_COLLECTION_AND_ML_PIPELINE.md)
+
 ---
 
 ## 1. Fetching: Docker curl-impersonate + BeautifulSoup
@@ -119,7 +123,6 @@ tv/
 │   │   ├── bible_verses.jsonl     # Verse-level aligned Bible text
 │   │   ├── articles.jsonl         # Article/paragraph-level aligned text
 │   │   ├── daily_text.jsonl       # Date-keyed daily text pairs
-│   │   └── publications.jsonl     # Publication chapter pairs
 │   ├── hf_dataset/                # HuggingFace-ready Parquet files
 │   │   ├── README.md              # HF dataset card
 │   │   ├── bible/
@@ -134,21 +137,34 @@ tv/
 │   │       ├── train.parquet
 │   │       ├── validation.parquet
 │   │       └── test.parquet
-│   └── finetune/                  # LLM fine-tuning formats
-│       ├── openai_chat.jsonl
-│       ├── instruction.jsonl
-│       └── monolingual_tvl.jsonl
+│   └── finetune/                  # LLM fine-tuning artifact outputs
+│       └── stage_a_mt/            # Stage A MT format (current)
+│           ├── train_full.jsonl
+│           ├── train_balanced.jsonl
+│           ├── validation.jsonl
+│           └── test.jsonl
+├── docs/
+│   ├── SCRAPING_PLAYBOOK.md       # Step-by-step data collection guide
+│   ├── DATASET_COLLECTION_AND_ML_PIPELINE.md  # Schema + lineage
+│   ├── TRAINING_PIPELINE.md       # Stage A/B training commands
+│   ├── TVL_EN_TINKER_PLAN.md      # Strategic training plan
+│   └── SELECTIVE_TRANSLATION_SPEC.md  # Selective translation rules
 ├── scripts/
 │   ├── fetch.py                   # Docker curl-impersonate fetcher (shared)
 │   ├── scrape_sitemap.py          # Parse JW sitemap, classify URLs
 │   ├── scrape_bible.py            # Scrape Bible chapters (verse-aligned)
-│   ├── scrape_articles.py         # Scrape WOL articles by docId
+│   ├── scrape_articles.py         # Scrape WOL articles by docId + library crawl
 │   ├── scrape_daily_text.py       # Scrape date-based daily text
-│   ├── align.py                   # Align scraped content into pairs
-│   ├── build_hf_dataset.py        # Convert aligned JSONL → Parquet
-│   ├── build_finetune.py          # Convert aligned JSONL → fine-tuning formats
-│   ├── quality.py                 # Quality filtering and validation
-│   └── stats.py                   # Dataset statistics and reporting
+│   ├── stats.py                   # Dataset statistics and quality report
+│   ├── build_stage_a_mt_data.py    # Build Stage A MT JSONL from aligned pairs
+│   ├── train_stage_a_translation.py# Train Stage A translation LoRA
+│   ├── eval_stage_a_translation.py # Evaluate Stage A translation
+│   ├── build_stage_b_sources.py    # Build normalized English source pools
+│   ├── generate_stage_b_synthetic_tvl.py # Generate synthetic TVL capability data
+│   ├── build_stage_b_mix.py       # Mix source/synthetic/anchor datasets for Stage B
+│   ├── train_stage_b_agent.py     # Train Stage B bilingual LoRA
+│   ├── eval_stage_b_agent.py      # Evaluate Stage B
+│   └── bootstrap_tinker.sh        # Bootstrap script with staged run checklist
 └── logs/
     ├── scrape.log
     └── alignment.log
@@ -473,21 +489,38 @@ uv run python scripts/scrape_bible.py --full      # all 66 books
 ### 7.3 WOL articles (Priority 2)
 
 **Source**: WOL document pages by docId
-**Script**: `scripts/scrape_articles.py` (planned)
+**Script**: `scripts/scrape_articles.py`
 
-**DocId harvesting sources**:
-- Publication TOC pages: `wol.jw.org/tvl/wol/publication/r153/lp-vl/{pubCode}`
-- Library browse: `wol.jw.org/tvl/wol/library/r153/lp-vl/tusi-katoa`
-- Links found in other scraped pages
+```bash
+uv run python scripts/scrape_articles.py --pub lv                         # single publication
+uv run python scripts/scrape_articles.py --library-cat "faleleoleo-maluga" # library category
+uv run python scripts/scrape_articles.py --library                         # all categories
+uv run python scripts/scrape_articles.py --docids 1102008070 1102015820   # specific docIds
+```
+
+**DocId harvesting sources** (two methods):
+1. Publication TOC pages: `wol.jw.org/tvl/wol/publication/r153/lp-vl/{pubCode}` — harvests docIds from a single publication's table of contents
+2. Recursive library crawl: `wol.jw.org/tvl/wol/library/r153/lp-vl/tusi-katoa/{category}` — follows sub-page links up to 5 levels deep across 6 categories (Watchtower, Awake!, Meeting workbooks, Books, Ministry, Brochures)
+
+**URL pattern**:
+- TVL: `wol.jw.org/tvl/wol/d/r153/lp-vl/{docId}`
+- EN: `wol.jw.org/en/wol/d/r1/lp-e/{docId}`
 
 ### 7.4 Daily text (Priority 3)
 
 **Source**: WOL daily text pages
-**Script**: `scripts/scrape_daily_text.py` (planned)
+**Script**: `scripts/scrape_daily_text.py`
 
-**URL pattern**:
+```bash
+uv run python scripts/scrape_daily_text.py --year 2025
+uv run python scripts/scrape_daily_text.py --range 2017-01-01 2025-12-31
+```
+
+**URL pattern** (month and day are NOT zero-padded):
 - TVL: `wol.jw.org/tvl/wol/h/r153/lp-vl/{yyyy}/{m}/{d}`
 - EN: `wol.jw.org/en/wol/h/r1/lp-e/{yyyy}/{m}/{d}`
+
+**Date range**: Tuvaluan daily texts exist from 2017-01-01 onward. Pre-2017 pages return empty content.
 
 ### 7.5 Rate limiting and politeness
 
@@ -616,18 +649,24 @@ Religious texts contain significant repetition (cross-references, repeated phras
 
 **Goal**: Harvest docIds from all Tuvaluan publications on WOL, scrape articles in both languages with paragraph alignment.
 
-**Publications scraped**: lv, bh, bt, lff, kr, jy, wt, my, bhs, lvs, sjj, snnw (12 publications)
+**Method**: Two-stage approach — (1) discover docIds by crawling WOL library pages recursively, then (2) fetch both language versions and align by `data-pid`.
 
-**Result**: **18,629 article paragraph pairs** (after quality filtering). Paragraph-level alignment by `data-pid` with document-level fallback for mismatched structures.
+**DocId sources**:
+- 22 direct publication codes: `bh`, `bhs`, `bm`, `bt`, `fg`, `gf`, `hf`, `jl`, `jy`, `kr`, `lff`, `lffi`, `lmd`, `lv`, `lvs`, `my`, `sjj`, `snnw`, `th`, `wt`, `yc`, `ypq`
+- 6 WOL library categories crawled recursively (Watchtower, Awake!, Meeting workbooks, Books, Ministry, Brochures)
+- Total: **7,255 unique docIds** scraped
 
-**Quality filtering applied**:
+**Result**: **275,430 article paragraph pairs** (raw, before deduplication). Paragraph-level alignment by `data-pid` with document-level fallback for mismatched structures. Contains ~129k duplicates from overlapping library category crawls, removed during dataset build.
+
+**Quality filtering applied at scrape time**:
 - Removed chapter headers ("CHAPTER N" / "MATAUPU E N")
 - Removed copyright/credits/metadata paragraphs
 - Removed pairs with both sides < 20 chars
 - Removed pairs with extreme ratios (<0.15 or >7.0)
-- Deduplicated by content hash
 
 **Output**: `data/aligned/articles.jsonl`
+
+See [docs/SCRAPING_PLAYBOOK.md](docs/SCRAPING_PLAYBOOK.md) for the full step-by-step reproduction guide.
 
 ---
 
@@ -635,17 +674,21 @@ Religious texts contain significant repetition (cross-references, repeated phras
 
 **Goal**: Scrape daily text in both languages for all available years.
 
-**Result**: **1,160 daily text pairs** (2022–2025). Each page returns ~3 consecutive days; script optimizes by extracting adjacent dates from the same fetch.
+**Date range discovery**: Tuvaluan daily texts exist from **2017-01-01** onward (verified by probing each year 2014–2021; pre-2017 pages return empty content).
+
+**Result**: **3,432 daily text pairs** covering **3,287 unique dates** from 2017-01-01 through 2025-12-31. 0 failures, 0 gaps. Each page returns ~3 consecutive days; script optimizes by extracting adjacent dates from the same fetch.
 
 **Output**: `data/aligned/daily_text.jsonl`
 
 ---
 
-### Experiment 6: Dataset assembly — PENDING
+### Experiment 6: Dataset assembly — PENDING (data collection complete)
 
 **Goal**: Combine all aligned data into HuggingFace Parquet files with proper splits, metadata, and dataset card.
 
-**Depends on**: Experiments 3–5 (completed)
+**Depends on**: Experiments 3–5 (all completed). Raw data: 309,700 pairs across 3 JSONL files.
+
+**Next steps**: Run deduplication + quality filtering, rebuild Stage A training data with full corpus, then assemble HuggingFace Parquet files.
 
 ---
 
@@ -678,29 +721,61 @@ uv add pandas pyarrow datasets lingua-py  # add when needed for dataset assembly
 
 ---
 
-## 12. Dataset size (actual)
+## 12. Dataset size (actual, as of March 2026)
+
+### Raw aligned data (before deduplication)
 
 | Content type | Pairs | Avg TVL chars | Avg EN chars | Median ratio |
 |---|---|---|---|---|
 | Bible verses | 30,838 | 183 | 153 | 1.19 |
-| Article paragraphs | 18,629 | 240 | 199 | 1.19 |
-| Daily text | 1,160 | 447 | 384 | 1.18 |
-| **Total** | **50,627** | **205** | **170** | **1.19** |
+| Article paragraphs | 275,430 | 277 | 224 | 1.24 |
+| Daily text | 3,432 | 1,020 | 1,020 | 1.18 |
+| **Total (raw)** | **309,700** | **277** | **224** | **1.24** |
 
-Quality profile:
-- 0 empty text pairs, 0 duplicates, 0 very short (<10 char) pairs
-- 78.9% of pairs in ideal 1.0–1.5 length ratio range
-- 30 extreme ratios remaining (genuine cross-language boundary differences)
+Raw character count: ~71.6M chars (~40.9M estimated tokens).
 
-### Remaining content (not yet scraped)
+### Quality profile (raw data)
 
-| Content type | Sitemap URLs | Est. pairs |
+- 0 empty text pairs
+- ~129,354 duplicate pairs (from overlapping library crawls — removed during build)
+- ~993 very short pairs (either side < 10 chars)
+- ~2,206 extreme length ratios (outside 0.3–3.0)
+- 76.1% of pairs in ideal 1.0–1.5 length ratio range
+
+### After deduplication and quality filtering
+
+The dataset build step (`scripts/build_stage_a_mt_data.py`) applies:
+- Exact content hash deduplication
+- Minimum character length filter
+- Length ratio bounds filter
+- Low alignment confidence filter
+
+Expected yield after filtering: ~170k unique quality pairs (~25M tokens).
+
+### Content coverage (complete)
+
+All scrapeable TVL-EN parallel text from WOL has been captured:
+
+| Source | Status | Coverage |
 |---|---|---|
-| Magazines | 2,489 pages | ~1,000–2,000 |
-| Brochures | 257 pages | ~100–300 |
-| Songs | 227 pages | ~200 |
-| FAQ/study | 92 pages | ~50–100 |
-| News | 36 pages | ~30 |
+| Bible (NWT) | Complete | All 66 books, 1,189 chapters |
+| Watchtower articles | Complete | Library crawl (2008–2025) |
+| Awake! articles | Complete | Library crawl (1981–2025) |
+| Meeting workbooks | Complete | Library crawl (2015–2025) |
+| Books/publications | Complete | 22 pub codes |
+| Brochures | Complete | All covered via library crawl |
+| Ministry materials | Complete | 2010–2015 (all overlap with above) |
+| Daily text | Complete | 2017-01-01 through 2025-12-31, 0 gaps |
+
+### Not scraped (and why)
+
+| Category | Count | Reason |
+|---|---|---|
+| Songs | 227 | Lyrics only; different text type |
+| Videos | 146 | No text content |
+| FAQ | 49 | Minimal, mostly covered via docId overlap |
+| News | 36 | Very small, many English-only |
+| Help pages | 17 | UI text, not useful for MT |
 
 ---
 
@@ -798,32 +873,50 @@ Notable ties:
 
 ## 16. Current dataset token counts
 
-> **Snapshot as of March 5, 2026.** Token estimates use the ~4 chars/token approximation.
+> **Snapshot as of March 6, 2026 (post full scrape).** Token estimates use the ~3.8 chars/token approximation for mixed TVL/EN text.
 
-### By domain
+### By source (raw, before dedup)
 
-| Domain | Pairs | TVL chars | EN chars | Est. TVL tokens | Est. EN tokens |
-|---|---|---|---|---|---|
-| Bible | 30,838 | 5.6M | 4.7M | ~1.4M | ~1.2M |
-| Articles (books) | 18,629 | 4.5M | 3.7M | ~1.1M | ~0.9M |
-| Daily text | 1,160 | 519K | 445K | ~130K | ~111K |
-| **Total** | **50,627** | **10.6M** | **8.9M** | **~2.7M** | **~2.2M** |
+| Source | Pairs | Total chars | Est. tokens |
+|---|---|---|---|
+| Articles | 275,430 | 55.6M | ~14.6M |
+| Bible | 30,838 | 8.9M | ~2.4M |
+| Daily text | 3,432 | 7.0M | ~1.8M |
+| **Total** | **309,700** | **71.6M** | **~18.8M** |
 
-### For fine-tuning (both directions)
+### After dedup (estimated)
 
 | Metric | Value |
 |---|---|
-| Training examples (×2 directions) | ~101,254 |
-| Full sequence tokens (with prompts) | ~12M |
-| Target tokens only | ~4.9M |
+| Unique pairs | ~180k |
+| Quality-filtered pairs | ~170k |
+| Total chars (both languages) | ~45M |
+| Total tokens | ~12M |
+
+### For fine-tuning (both directions, post-dedup)
+
+| Metric | Value |
+|---|---|
+| Training examples (x2 directions) | ~340k |
+| Full sequence tokens (with prompts) | ~30M |
+| Target tokens only | ~12M |
 
 ---
 
 ## 17. Open questions
 
-- [x] How many WOL docIds actually have Tuvaluan translations? — 12 publications harvested, yielding 18,629 paragraph pairs
-- [x] What date range of daily text content exists in Tuvaluan? — 2022–2025 (1,160 pairs); earlier years return empty pages
+- [x] How many WOL docIds actually have Tuvaluan translations? — 7,255 unique docIds scraped from 6 library categories + 22 publication codes, yielding 275,430 paragraph pairs (raw)
+- [x] What date range of daily text content exists in Tuvaluan? — 2017-01-01 through 2025-12-31 (3,432 pairs, 3,287 dates, 0 gaps). Pre-2017 pages return empty content.
 - [x] What is the exact `wtlocale` value for Tuvaluan `open` links? — `VL` (not `TVL`, which resolves to English)
+- [x] Are there JW articles going back before 2017? — Yes, Tuvaluan publications on WOL go back to 1981 ("Mai Tou Malo" / kc). All discovered content has been scraped.
 - [ ] Are there additional WOL Bible translation codes beyond `nwt` for Tuvaluan?
 - [ ] Should songs/lyrics be included or excluded? (Different text type; may confuse MT models)
 - [ ] Should we include a Tokelauan subset as a related-language augmentation?
+
+## 18. Scraping Playbook
+
+For a complete step-by-step guide to reproduce all data collection from scratch, see:
+
+**[docs/SCRAPING_PLAYBOOK.md](docs/SCRAPING_PLAYBOOK.md)**
+
+This includes all prerequisites, commands, troubleshooting, and a reproduction checklist.
