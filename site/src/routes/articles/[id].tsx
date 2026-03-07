@@ -40,23 +40,79 @@ function SourceName(props: { sourceId: string }) {
   return <>{map[props.sourceId] || props.sourceId}</>;
 }
 
+function sendSignal(articleId: string, signalType: string, paragraphIndex?: number) {
+  const island = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_island") : null;
+  const session = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_session") : null;
+  fetch("/api/signal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      article_id: articleId,
+      signal_type: signalType,
+      paragraph_index: paragraphIndex,
+      session_id: session,
+      island,
+    }),
+  }).catch(() => {});
+}
+
 function BilingualParagraph(props: {
   tvl: string;
   en: string;
   mode: LanguageMode;
   index: number;
+  articleId: string;
 }) {
   const [showEn, setShowEn] = createSignal(false);
+  const [flagged, setFlagged] = createSignal(false);
+
+  const handleFlag = () => {
+    if (flagged()) return;
+    setFlagged(true);
+    const island = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_island") : null;
+    const session = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_session") : null;
+    fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        article_id: props.articleId,
+        paragraph_idx: props.index,
+        feedback_type: "flag",
+        island,
+        session_id: session,
+      }),
+    }).catch(() => {});
+  };
+
+  const handleReveal = () => {
+    const wasHidden = !showEn();
+    setShowEn(!showEn());
+    if (wasHidden) {
+      sendSignal(props.articleId, "reveal", props.index);
+    }
+  };
 
   return (
     <div class="mb-5">
       <Show when={props.mode === "tv" || props.mode === "tv+en"}>
-        <p class="text-base leading-relaxed text-gray-900">{props.tvl}</p>
+        <div class="flex items-start gap-2">
+          <p class="flex-1 text-base leading-relaxed text-gray-900">{props.tvl}</p>
+          <button
+            onClick={handleFlag}
+            class={`shrink-0 mt-0.5 text-xs cursor-pointer bg-transparent border-none p-1 min-h-0 rounded ${
+              flagged() ? "text-amber-500" : "text-gray-300 hover:text-gray-500"
+            }`}
+            title="Seki tonu? (Doesn't sound right?)"
+            aria-label="Flag this paragraph"
+          >
+            [?]
+          </button>
+        </div>
       </Show>
 
       <Show when={props.mode === "tv"}>
         <button
-          onClick={() => setShowEn(!showEn())}
+          onClick={handleReveal}
           class="mt-1.5 text-xs text-blue-600 hover:text-blue-800 cursor-pointer bg-transparent border-none p-0 min-h-0"
         >
           {showEn() ? "Funa te English" : "Fakakite English"}
@@ -227,6 +283,7 @@ export default function ArticlePage() {
                         en={enParagraphs()[i()] || ""}
                         mode={effectiveMode()}
                         index={i()}
+                        articleId={a().id}
                       />
                     )}
                   </For>
@@ -245,6 +302,7 @@ export default function ArticlePage() {
                 </a>
                 <button
                   onClick={() => {
+                    sendSignal(a().id, "share");
                     if (navigator.share) {
                       navigator.share({
                         title: a().title_tvl || a().title_en,

@@ -1,11 +1,12 @@
 import Database from "better-sqlite3";
 import { join, resolve } from "path";
-import type { Article, Category } from "./types";
+import type { Article, Category, FeedbackSubmission, SignalSubmission, FateleStats } from "./types";
 
 // process.cwd() is site/ in both dev and production
 const DB_PATH = resolve(join(process.cwd(), "..", "data", "football", "football.db"));
 
 let db: Database.Database | null = null;
+let dbWrite: Database.Database | null = null;
 
 function getDb(): Database.Database {
   if (!db) {
@@ -13,6 +14,14 @@ function getDb(): Database.Database {
     db.pragma("journal_mode = WAL");
   }
   return db;
+}
+
+function getWriteDb(): Database.Database {
+  if (!dbWrite) {
+    dbWrite = new Database(DB_PATH, { readonly: false });
+    dbWrite.pragma("journal_mode = WAL");
+  }
+  return dbWrite;
 }
 
 const ARTICLE_SELECT = `
@@ -78,4 +87,40 @@ export function getArticleCount(category?: string): number {
   }
   const stmt = conn.prepare("SELECT COUNT(*) AS cnt FROM articles");
   return (stmt.get() as { cnt: number }).cnt;
+}
+
+export function insertFeedback(fb: FeedbackSubmission): void {
+  const conn = getWriteDb();
+  conn.prepare(
+    `INSERT INTO feedback (article_id, paragraph_idx, feedback_type, island, session_id)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(fb.article_id, fb.paragraph_idx, fb.feedback_type, fb.island ?? null, fb.session_id ?? null);
+}
+
+export function insertSignal(sig: SignalSubmission): void {
+  const conn = getWriteDb();
+  conn.prepare(
+    `INSERT INTO implicit_signals (article_id, signal_type, paragraph_index, session_id, island)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(sig.article_id, sig.signal_type, sig.paragraph_index ?? null, sig.session_id ?? null, sig.island ?? null);
+}
+
+export function getFateleStats(): FateleStats {
+  const conn = getDb();
+  const total = conn.prepare(
+    `SELECT COUNT(*) AS cnt FROM implicit_signals
+     WHERE created_at >= date('now', 'start of month')`
+  ).get() as { cnt: number };
+
+  const islands = conn.prepare(
+    `SELECT island, COUNT(*) AS count FROM implicit_signals
+     WHERE island IS NOT NULL
+     GROUP BY island
+     ORDER BY count DESC`
+  ).all() as { island: string; count: number }[];
+
+  return {
+    total_this_month: total.cnt,
+    islands,
+  };
 }

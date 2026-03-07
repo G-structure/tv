@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import html
 import json
 import sqlite3
 import time
@@ -273,8 +274,8 @@ def extract_article(
         return {
             "id": entry_id,
             "url": canonical_url,
-            "title_en": title,
-            "body_en": body_text,
+            "title_en": html.unescape(title),
+            "body_en": html.unescape(body_text),
             "author": None,  # FIFA API has no author field
             "published_at": published_at,
             "category": category,
@@ -283,7 +284,7 @@ def extract_article(
             "image_alt": image_alt,
             "image_width": image_width,
             "image_height": image_height,
-            "og_description_en": og_description,
+            "og_description_en": html.unescape(og_description),
             "word_count": len(body_text.split()),
         }
     except (KeyError, TypeError, IndexError):

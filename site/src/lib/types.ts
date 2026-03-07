@@ -24,3 +24,44 @@ export interface Category {
   slug: string;
   count: number;
 }
+
+export interface FeedbackSubmission {
+  article_id: string;
+  paragraph_idx: number;
+  feedback_type: "flag";
+  island?: string;
+  session_id?: string;
+}
+
+export interface SignalSubmission {
+  article_id: string;
+  signal_type: "share" | "reveal" | "flag";
+  paragraph_index?: number;
+  session_id?: string;
+  island?: string;
+}
+
+export interface IslandStats {
+  island: string;
+  count: number;
+}
+
+export interface FateleStats {
+  total_this_month: number;
+  islands: IslandStats[];
+}
+
+export const ISLANDS = [
+  "Funafuti",
+  "Vaitupu",
+  "Nanumea",
+  "Nui",
+  "Nukufetau",
+  "Niutao",
+  "Nanumaga",
+  "Nukulaelae",
+  "Niulakita",
+  "I fafo",
+] as const;
+
+export type Island = (typeof ISLANDS)[number];

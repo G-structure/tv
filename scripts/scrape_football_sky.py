@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import html
 import json
 import re
 import sqlite3
@@ -221,8 +222,8 @@ def extract_article(html: str, url: str) -> dict | None:
     return {
         "id": article_id,
         "url": url,
-        "title_en": ld.get("headline", ""),
-        "body_en": article_body,
+        "title_en": html.unescape(ld.get("headline", "")),
+        "body_en": html.unescape(article_body),
         "author": author,
         "published_at": ld.get("datePublished", ""),
         "category": map_category(section_id, genre),
@@ -231,7 +232,7 @@ def extract_article(html: str, url: str) -> dict | None:
         "image_alt": image_alt,
         "image_width": image_width,
         "image_height": image_height,
-        "og_description_en": og_description,
+        "og_description_en": html.unescape(og_description),
         "word_count": word_count,
     }
 

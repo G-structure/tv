@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import html
 import json
 import re
 import sqlite3
@@ -145,8 +146,8 @@ def extract_news_article(data: dict) -> dict | None:
         return {
             "id": article.get("id", ""),
             "url": meta.get("seo", {}).get("canonicalUrl", ""),
-            "title_en": article.get("headline", ""),
-            "body_en": body_text,
+            "title_en": html.unescape(article.get("headline", "")),
+            "body_en": html.unescape(body_text),
             "author": (article.get("author") or [{}])[0].get("name"),
             "published_at": article.get("publishTime", ""),
             "category": map_category(tags),
@@ -155,7 +156,7 @@ def extract_news_article(data: dict) -> dict | None:
             "image_alt": image.get("alt", ""),
             "image_width": image.get("width"),
             "image_height": image.get("height"),
-            "og_description_en": og.get("description", ""),
+            "og_description_en": html.unescape(og.get("description", "")),
             "word_count": len(body_text.split()),
         }
     except (KeyError, TypeError, IndexError):
@@ -197,8 +198,8 @@ def extract_list_article(data: dict) -> dict | None:
         return {
             "id": article.get("id", ""),
             "url": meta.get("seo", {}).get("canonicalUrl", ""),
-            "title_en": article.get("headline", ""),
-            "body_en": body_text,
+            "title_en": html.unescape(article.get("headline", "")),
+            "body_en": html.unescape(body_text),
             "author": (article.get("author") or [{}])[0].get("name"),
             "published_at": article.get("publishTime", ""),
             "category": map_category(tags),
@@ -207,7 +208,7 @@ def extract_list_article(data: dict) -> dict | None:
             "image_alt": image.get("alt", ""),
             "image_width": image.get("width"),
             "image_height": image.get("height"),
-            "og_description_en": og.get("description", ""),
+            "og_description_en": html.unescape(og.get("description", "")),
             "word_count": len(body_text.split()),
         }
     except (KeyError, TypeError, IndexError):

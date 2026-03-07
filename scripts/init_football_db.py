@@ -57,10 +57,34 @@ CREATE TABLE IF NOT EXISTS fetch_log (
   errors TEXT
 );
 
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id TEXT NOT NULL REFERENCES articles(id),
+  paragraph_idx INTEGER,
+  feedback_type TEXT NOT NULL,
+  island TEXT,
+  session_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS implicit_signals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id TEXT NOT NULL,
+  signal_type TEXT NOT NULL,
+  paragraph_index INTEGER,
+  session_id TEXT,
+  island TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_source ON articles(source_id, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category, published_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_translations_article ON translations(article_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_article ON feedback(article_id);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
+CREATE INDEX IF NOT EXISTS idx_signals_article ON implicit_signals(article_id);
+CREATE INDEX IF NOT EXISTS idx_signals_created ON implicit_signals(created_at);
 """
 
 SEED_SOURCES = [

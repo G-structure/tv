@@ -3,6 +3,8 @@ import { Router } from "@solidjs/router";
 import { FileRoutes } from "@solidjs/start/router";
 import { Suspense } from "solid-js";
 import Header from "~/components/Header";
+import IslandSelector from "~/components/IslandSelector";
+import FateleTeaser from "~/components/FateleTeaser";
 import "./app.css";
 
 export default function App() {
@@ -10,7 +12,7 @@ export default function App() {
     <Router
       root={(props) => (
         <MetaProvider>
-          <div class="min-h-screen bg-gray-50">
+          <div class="min-h-screen bg-gray-50 pb-12">
             <Header />
             <Suspense
               fallback={
@@ -21,6 +23,8 @@ export default function App() {
             >
               {props.children}
             </Suspense>
+            <FateleTeaser />
+            <IslandSelector />
           </div>
         </MetaProvider>
       )}
