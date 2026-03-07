@@ -39,7 +39,11 @@ TINKER_MODEL_ID = "a6453cc0-d0d8-5168-996a-c9b9ee3b8582"
 SYSTEM_PROMPT = (
     "You are a careful translator between Tuvaluan and English. Translate "
     "faithfully. Preserve names, numbers, punctuation, line breaks, and structure "
-    "when possible. Output only the translation."
+    "when possible. Output only the translation.\n"
+    "Keep proper nouns (person names, place names, team names) exactly as they "
+    "appear in English — do not transliterate them. For football/sports terms "
+    "with no Tuvaluan equivalent (penalty, offside, midfielder, VAR, Premier "
+    "League, Champions League, etc.), keep the English term as a loanword."
 )
 
 USER_PROMPT_TEMPLATE = (
@@ -47,9 +51,10 @@ USER_PROMPT_TEMPLATE = (
     "structure when possible.\n\n{text}"
 )
 
-MAX_TOKENS = 512
+MAX_TOKENS = 1024
 STOP_SEQUENCES = ["\n\nUser:"]
 REQUEST_DELAY = 0.5  # seconds between API calls
+MAX_PARAGRAPH_WORDS = 150  # sub-chunk paragraphs longer than this
 
 # Temperature escalation for retry on collapse
 TEMPERATURE_SCHEDULE = [0.0, 0.3, 0.7]
@@ -77,6 +82,9 @@ def get_db() -> sqlite3.Connection:
     return conn
 
 
+_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
+
+
 def split_paragraphs(body: str) -> list[str]:
     """Split article body into paragraphs for individual translation."""
     if "<p" in body:
@@ -85,6 +93,44 @@ def split_paragraphs(body: str) -> list[str]:
             paragraphs = [re.sub(r"<[^>]+>", "", m).strip() for m in matches]
             return [p for p in paragraphs if len(p) > 0]
     return [p.strip() for p in body.split("\n\n") if p.strip()]
+
+
+def sub_chunk_paragraph(text: str, max_words: int = MAX_PARAGRAPH_WORDS) -> list[str]:
+    """Split a long paragraph into sentence-boundary chunks.
+
+    If the paragraph is short enough, returns it as a single-element list.
+    For long paragraphs, groups sentences into chunks of ~max_words.
+    """
+    word_count = len(text.split())
+    if word_count <= max_words:
+        return [text]
+
+    sentences = _SENTENCE_BOUNDARY.split(text)
+    if len(sentences) <= 1:
+        return [text]  # can't split further
+
+    chunks = []
+    current = []
+    current_words = 0
+
+    for sentence in sentences:
+        s_words = len(sentence.split())
+        current.append(sentence)
+        current_words += s_words
+
+        if current_words >= max_words:
+            chunks.append(" ".join(current))
+            current = []
+            current_words = 0
+
+    if current:
+        # Merge short tail into last chunk to avoid tiny fragments
+        if chunks and current_words < max_words // 3:
+            chunks[-1] += " " + " ".join(current)
+        else:
+            chunks.append(" ".join(current))
+
+    return chunks
 
 
 def translate_text(
@@ -165,7 +211,7 @@ def translate_article(
         og_desc_tvl = translate_text(client, api_key, article["og_description_en"], temperature)
         time.sleep(REQUEST_DELAY)
 
-    # Translate body paragraphs
+    # Translate body paragraphs (with sub-chunking for long ones)
     paragraphs = split_paragraphs(article["body_en"])
     translated_paragraphs = []
     failed_count = 0
@@ -175,14 +221,23 @@ def translate_article(
             translated_paragraphs.append(para)
             continue
 
-        tvl = translate_text(client, api_key, para, temperature)
-        time.sleep(REQUEST_DELAY)
+        # Sub-chunk long paragraphs at sentence boundaries
+        chunks = sub_chunk_paragraph(para)
+        translated_chunks = []
+        chunk_failed = False
 
-        if tvl:
-            translated_paragraphs.append(tvl)
-        else:
-            # Keep original on failure so paragraph alignment is preserved
-            translated_paragraphs.append(para)
+        for chunk in chunks:
+            tvl = translate_text(client, api_key, chunk, temperature)
+            time.sleep(REQUEST_DELAY)
+
+            if tvl:
+                translated_chunks.append(tvl)
+            else:
+                translated_chunks.append(chunk)
+                chunk_failed = True
+
+        translated_paragraphs.append(" ".join(translated_chunks))
+        if chunk_failed:
             failed_count += 1
 
     body_tvl = "\n\n".join(translated_paragraphs)
