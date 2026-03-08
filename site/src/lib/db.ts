@@ -91,6 +91,19 @@ export function getArticleCount(category?: string): number {
   return (stmt.get() as { cnt: number }).cnt;
 }
 
+export function searchArticles(query: string, limit = 20): Article[] {
+  const conn = getDb();
+  const pattern = `%${query}%`;
+  const stmt = conn.prepare(
+    `${ARTICLE_SELECT}
+     WHERE a.title_en LIKE ? OR t.title_tvl LIKE ?
+        OR a.body_en LIKE ? OR t.body_tvl LIKE ?
+     ORDER BY a.published_at DESC
+     LIMIT ?`
+  );
+  return stmt.all(pattern, pattern, pattern, pattern, limit) as Article[];
+}
+
 export function insertFeedback(fb: FeedbackSubmission): void {
   const conn = getWriteDb();
   conn.prepare(
