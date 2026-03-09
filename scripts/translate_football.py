@@ -393,10 +393,6 @@ def main():
                         help="Retry articles with collapsed translations")
     args = parser.parse_args()
 
-    if not DB_PATH.exists():
-        print(f"Database not found at {DB_PATH}. Run init_football_db.py first.")
-        return
-
     api_key = get_api_key()
     conn = get_db()
 
