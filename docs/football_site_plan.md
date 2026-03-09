@@ -1468,10 +1468,13 @@ const CATEGORIES: Record<string, string[]> = {
 
 - [x] Deploy to Cloudflare Pages — live at https://talafutipolo.pages.dev
 - [x] Migrate SQLite to Cloudflare D1 (edge SQLite, replaces better-sqlite3)
+- [x] PWA manifest (`manifest.json`, icons, apple-touch-icon, theme-color)
+- [x] Brotli pre-compression — Vinxi does this automatically at build time
+- [x] Verify service worker caching on Cloudflare (SW: `max-age=0`, assets: `immutable`)
+- [x] Test 3G/high-latency: ~125 KB wire total, FCP ~0.9s cable / ~1.5s satellite
+- [x] Env vars: TINKER_* only needed for content pipeline, not the site (D1 binding is enough)
+- [ ] Connect GitHub repo for auto-deploy (requires Cloudflare dashboard OAuth)
 - [ ] Set up Cloudflare Workers cron triggers (fetch every 30min, translate every 15min)
-- [ ] PWA manifest for installability on mobile
-- [ ] Pre-compress all assets with Brotli at build time
-- [ ] Connect GitHub repo for auto-deploy on push
 
 ### Phase 6 — growth
 
@@ -1578,12 +1581,18 @@ npx wrangler pages deploy dist --project-name talafutipolo --commit-dirty=true
 
 #### Remaining deployment tasks
 
-- [ ] Connect GitHub repo (`G-structure/tv`) for auto-deploy on push
+- [ ] Connect GitHub repo (`G-structure/tv`) for auto-deploy (requires Cloudflare dashboard)
 - [ ] Set up Cloudflare Workers cron triggers for content pipeline
-- [ ] Add Web App Manifest (`manifest.json`) for PWA installability
-- [ ] Set environment variables (TINKER_API_KEY, TINKER_MODEL_PATH) for Workers
-- [ ] Test on simulated 3G / high-latency connection
-- [ ] Verify service worker caching works on Cloudflare (scope, headers)
+
+#### Completed deployment tasks (2026-03-09)
+
+- [x] PWA manifest with icons, apple-touch-icon, theme-color
+- [x] Brotli pre-compression (Vinxi handles automatically)
+- [x] Set TINKER_API_KEY on Pages project
+- [x] Verified service worker caching: SW `max-age=0, must-revalidate`,
+  static assets `immutable, max-age=31536000`, correct `content-encoding: br`
+- [x] 3G test: ~125 KB total wire (80 KB HTML + 5 KB CSS + 40 KB JS Brotli),
+  FCP ~0.9s on cable, ~1.5s on satellite. Within performance budget.
 
 ### Network topology: Tuvalu → site
 
