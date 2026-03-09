@@ -41,11 +41,11 @@ export default function SearchPage() {
             name="q"
             value={q()}
             placeholder="Saili tala... (Search articles)"
-            class="flex-1 px-4 py-3 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-gray-400"
+            class="flex-1 px-4 py-3 border border-[var(--sky-dark)] rounded-lg text-sm bg-white focus:outline-none focus:border-[var(--ocean-bright)]"
           />
           <button
             type="submit"
-            class="px-5 py-3 bg-[#1a1a2e] text-white rounded-lg text-sm font-medium cursor-pointer border-none hover:bg-[#2a2a4e] transition-colors"
+            class="px-5 py-3 bg-[var(--ocean-deep)] text-white rounded-lg text-sm font-medium cursor-pointer border-none hover:bg-[var(--ocean)] transition-colors"
           >
             Saili
           </button>

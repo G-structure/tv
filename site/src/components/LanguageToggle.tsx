@@ -24,7 +24,7 @@ export default function LanguageToggle(props: LanguageToggleProps) {
   return (
     <button
       onClick={() => props.onChange(next())}
-      class="px-3 py-1.5 rounded-full text-xs font-semibold border border-gray-300 text-gray-700 bg-white hover:bg-gray-100 transition-colors cursor-pointer min-h-[36px]"
+      class="px-3 py-1.5 rounded-full text-xs font-semibold border border-[var(--ocean)] text-[var(--ocean-deep)] bg-white hover:bg-[var(--sky)] transition-colors cursor-pointer min-h-[36px]"
       aria-label={`Language: ${MODE_LABELS[props.mode]}. Tap to switch.`}
     >
       {MODE_LABELS[props.mode]}

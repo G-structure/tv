@@ -87,7 +87,7 @@ export default function CategoryPage() {
                   <Show when={hasPrev()}>
                     <A
                       href={d().page === 2 ? `/category/${params.slug}` : `/category/${params.slug}?page=${d().page - 1}`}
-                      class="flex-1 py-3 text-center text-sm font-medium text-gray-600 bg-gray-100 rounded-lg no-underline hover:bg-gray-200 transition-colors"
+                      class="flex-1 py-3 text-center text-sm font-medium text-[var(--ocean-deep)] bg-white rounded-lg no-underline hover:bg-[var(--sky-dark)] transition-colors border border-[var(--sky-dark)]"
                     >
                       &larr; Foki
                     </A>
@@ -95,7 +95,7 @@ export default function CategoryPage() {
                   <Show when={hasNext()}>
                     <A
                       href={`/category/${params.slug}?page=${d().page + 1}`}
-                      class="flex-1 py-3 text-center text-sm font-medium text-gray-600 bg-gray-100 rounded-lg no-underline hover:bg-gray-200 transition-colors"
+                      class="flex-1 py-3 text-center text-sm font-medium text-[var(--ocean-deep)] bg-white rounded-lg no-underline hover:bg-[var(--sky-dark)] transition-colors border border-[var(--sky-dark)]"
                     >
                       Faitau atu &darr;
                     </A>

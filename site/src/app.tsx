@@ -19,7 +19,7 @@ export default function App() {
       root={(props) => (
         <MetaProvider>
           <Link rel="alternate" type="application/rss+xml" title="TALAFUTIPOLO RSS" href="/feed.xml" />
-          <div class="min-h-screen bg-gray-50 pb-12">
+          <div class="min-h-screen pb-12">
             <Header />
             <Suspense
               fallback={

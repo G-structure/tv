@@ -5,12 +5,22 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji",
     "Segoe UI Emoji";
+
+  /* Tuvalu flag-inspired palette */
+  --ocean-deep: #013A63;
+  --ocean: #0077B6;
+  --ocean-bright: #0096C7;
+  --sky: #EDF6F9;
+  --sky-dark: #D6EAF0;
+  --gold: #FFB703;
+  --gold-dark: #E09F00;
 }
 
 body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--sky);
 }
 
 /* Large touch targets */

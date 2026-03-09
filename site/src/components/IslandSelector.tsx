@@ -33,10 +33,10 @@ export default function IslandSelector() {
 
   return (
     <Show when={show()}>
-      <div class="fixed inset-0 z-50 bg-[#1a1a2e] flex items-center justify-center p-6">
+      <div class="fixed inset-0 z-50 bg-[var(--ocean-deep)] flex items-center justify-center p-6">
         <div class="w-full max-w-sm text-center">
-          <h2 class="text-2xl font-bold text-white mb-2">Talofa!</h2>
-          <p class="text-gray-300 mb-6 text-sm">
+          <h2 class="text-2xl font-bold text-[var(--gold)] mb-2">Talofa!</h2>
+          <p class="text-[var(--sky-dark)] mb-6 text-sm">
             Ko koe mai fea? Where are you from?
           </p>
 
@@ -44,7 +44,7 @@ export default function IslandSelector() {
             {ISLANDS.slice(0, 9).map((island) => (
               <button
                 onClick={() => selectIsland(island)}
-                class="py-3 px-4 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-colors cursor-pointer border-none"
+                class="py-3 px-4 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-[var(--gold)]/20 transition-colors cursor-pointer border border-[var(--gold)]/30"
               >
                 {island}
               </button>
@@ -54,14 +54,14 @@ export default function IslandSelector() {
           {/* I fafo (Diaspora) full width */}
           <button
             onClick={() => selectIsland("I fafo")}
-            class="w-full py-3 px-4 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-colors cursor-pointer border-none mb-4"
+            class="w-full py-3 px-4 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-[var(--gold)]/20 transition-colors cursor-pointer border border-[var(--gold)]/30 mb-4"
           >
             I fafo (Diaspora)
           </button>
 
           <button
             onClick={skip}
-            class="text-gray-400 text-sm hover:text-gray-200 cursor-pointer bg-transparent border-none"
+            class="text-[var(--sky-dark)] text-sm hover:text-[var(--gold)] cursor-pointer bg-transparent border-none"
           >
             Fano &rarr;
           </button>

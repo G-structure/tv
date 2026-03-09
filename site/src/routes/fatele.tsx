@@ -46,9 +46,9 @@ export default function FatelePage() {
       {/* Hero stat */}
       <Show when={stats()}>
         {(s) => (
-          <div class="bg-[#1a1a2e] text-white rounded-xl p-6 text-center mb-6">
-            <div class="text-4xl font-bold">{s().total_this_month}</div>
-            <div class="text-sm text-gray-300 mt-1">
+          <div class="bg-[var(--ocean-deep)] text-white rounded-xl p-6 text-center mb-6">
+            <div class="text-4xl font-bold text-[var(--gold)]">{s().total_this_month}</div>
+            <div class="text-sm text-[var(--sky-dark)] mt-1">
               fakailoga i te masina nei (signals this month)
             </div>
           </div>
@@ -64,9 +64,9 @@ export default function FatelePage() {
                 <span class="font-medium text-gray-700">{d.island}</span>
                 <span class="text-gray-400">{d.count}</span>
               </div>
-              <div class="h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div class="h-3 bg-[var(--sky-dark)] rounded-full overflow-hidden">
                 <div
-                  class="h-full bg-[#1a1a2e] rounded-full transition-all duration-500"
+                  class="h-full bg-[var(--gold)] rounded-full transition-all duration-500"
                   style={{ width: `${(d.count / maxCount()) * 100}%` }}
                 />
               </div>
@@ -76,7 +76,7 @@ export default function FatelePage() {
       </div>
 
       {/* Help text */}
-      <div class="mt-8 p-4 bg-gray-50 rounded-xl text-sm text-gray-600 leading-relaxed">
+      <div class="mt-8 p-4 bg-white rounded-xl text-sm text-gray-600 leading-relaxed border border-[var(--sky-dark)]">
         <p class="font-medium text-gray-900 mb-2">Pefea e fesoasoani ai?</p>
         <p>
           Faitau tala i te gagana Tuvalu. Kapiti te [?] pe afai e seki tonu te

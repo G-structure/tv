@@ -26,7 +26,7 @@ export default function ArticleCard(props: ArticleCardProps) {
     return (
       <A
         href={`/articles/${props.article.id}`}
-        class="block rounded-xl overflow-hidden bg-white shadow-md no-underline text-inherit hover:shadow-lg transition-shadow"
+        class="block rounded-xl overflow-hidden bg-white border border-[var(--sky-dark)] no-underline text-inherit hover:border-[var(--ocean-bright)] transition-colors"
       >
         {props.article.image_url && (
           <img
@@ -58,7 +58,7 @@ export default function ArticleCard(props: ArticleCardProps) {
   return (
     <A
       href={`/articles/${props.article.id}`}
-      class="flex gap-3 p-3 rounded-lg bg-white no-underline text-inherit hover:bg-gray-50 transition-colors"
+      class="flex gap-3 p-3 rounded-lg bg-white no-underline text-inherit hover:bg-[var(--sky)] transition-colors"
     >
       {props.article.image_url && (
         <img

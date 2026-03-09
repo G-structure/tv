@@ -23,8 +23,8 @@ export default function CategoryPills(props: CategoryPillsProps) {
         href="/"
         class={`shrink-0 px-4 py-2 rounded-full text-sm font-medium no-underline transition-colors ${
           isAll()
-            ? "bg-[#1a1a2e] text-white"
-            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+            ? "bg-[var(--gold)] text-[var(--ocean-deep)] font-bold"
+            : "bg-white text-[var(--ocean-deep)] hover:bg-[var(--sky-dark)]"
         }`}
       >
         All
@@ -35,8 +35,8 @@ export default function CategoryPills(props: CategoryPillsProps) {
             href={`/category/${cat.slug}`}
             class={`shrink-0 px-4 py-2 rounded-full text-sm font-medium no-underline transition-colors capitalize ${
               isActive(cat.slug)
-                ? "bg-[#1a1a2e] text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                ? "bg-[var(--gold)] text-[var(--ocean-deep)] font-bold"
+                : "bg-white text-[var(--ocean-deep)] hover:bg-[var(--sky-dark)]"
             }`}
           >
             {cat.slug.replace(/-/g, " ")}

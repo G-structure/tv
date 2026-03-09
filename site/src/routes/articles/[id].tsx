@@ -113,19 +113,19 @@ function BilingualParagraph(props: {
       <Show when={props.mode === "tv"}>
         <button
           onClick={handleReveal}
-          class="mt-1.5 text-xs text-blue-600 hover:text-blue-800 cursor-pointer bg-transparent border-none p-0 min-h-0"
+          class="mt-1.5 text-xs text-[var(--ocean)] hover:text-[var(--ocean-deep)] cursor-pointer bg-transparent border-none p-0 min-h-0"
         >
           {showEn() ? "Funa te English" : "Fakakite English"}
         </button>
         <Show when={showEn()}>
-          <p class="mt-1.5 pl-3 text-sm leading-relaxed text-gray-400 italic border-l-2 border-gray-200">
+          <p class="mt-1.5 pl-3 text-sm leading-relaxed text-gray-400 italic border-l-2 border-[var(--ocean-bright)]">
             {props.en}
           </p>
         </Show>
       </Show>
 
       <Show when={props.mode === "tv+en"}>
-        <p class="mt-2 pl-3 text-sm leading-relaxed text-gray-400 italic border-l-2 border-gray-200">
+        <p class="mt-2 pl-3 text-sm leading-relaxed text-gray-400 italic border-l-2 border-[var(--ocean-bright)]">
           {props.en}
         </p>
       </Show>
@@ -291,12 +291,12 @@ export default function ArticlePage() {
               </div>
 
               {/* Source attribution + share */}
-              <div class="mt-8 pt-4 border-t border-gray-200 flex items-center justify-between">
+              <div class="mt-8 pt-4 border-t border-[var(--sky-dark)] flex items-center justify-between">
                 <a
                   href={a().url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-sm text-blue-600 hover:text-blue-800 no-underline"
+                  class="text-sm text-[var(--ocean)] hover:text-[var(--ocean-deep)] no-underline"
                 >
                   Read original at <SourceName sourceId={a().source_id} />
                 </a>
@@ -316,7 +316,7 @@ export default function ArticlePage() {
                       navigator.clipboard.writeText(window.location.href);
                     }
                   }}
-                  class="px-4 py-2 bg-[#1a1a2e] text-white text-sm rounded-lg cursor-pointer border-none"
+                  class="px-4 py-2 bg-[var(--ocean-deep)] text-white text-sm rounded-lg cursor-pointer border-none hover:bg-[var(--ocean)] transition-colors"
                   aria-label="Fakasoa (Share)"
                 >
                   Fakasoa

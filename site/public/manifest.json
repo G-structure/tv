@@ -4,8 +4,8 @@
   "description": "Football news in the Tuvaluan language",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#1a1a2e",
+  "background_color": "#EDF6F9",
+  "theme_color": "#013A63",
   "lang": "tvl",
   "icons": [
     {

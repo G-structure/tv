@@ -12,7 +12,7 @@ export default function NotFound() {
         </p>
         <A
           href="/"
-          class="inline-block mt-8 px-6 py-3 bg-[#1a1a2e] text-white text-sm font-medium rounded-lg no-underline hover:bg-[#2a2a4e] transition-colors"
+          class="inline-block mt-8 px-6 py-3 bg-[var(--ocean-deep)] text-white text-sm font-medium rounded-lg no-underline hover:bg-[var(--ocean)] transition-colors"
         >
           &larr; Foki ki te kamata
         </A>
