@@ -17,3 +17,4 @@ __pycache__/
 
 # Prompts (scratch)
 prompt*.txt
+unstruct_lang_data

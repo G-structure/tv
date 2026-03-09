@@ -28,11 +28,34 @@ sys.path.insert(0, str(REPO_ROOT))
 from training.common.io import write_json, write_jsonl
 from training.common.manifests import create_manifest, save_manifest
 
-EXTRACTOR_VERSION = "unstructured-seed-v1"
+EXTRACTOR_VERSION = "unstructured-seed-v2"
 
 TATOEBA_MIN_CHARS = 3
-NAME_PATTERN = re.compile(r"\b[A-Z][A-Za-z0-9`ʻ‘’ʹ\-']+(?:\s+[A-Z][A-Za-z0-9`ʻ‘’ʹ\-']+){0,3}\b")
-ENTRY_CELL_SPLIT = re.compile(r"\s{3,}")
+NAME_PATTERN = re.compile(r"\b[A-Z][A-Za-z0-9`ʻ’’ʹ\-’]+(?:\s+[A-Z][A-Za-z0-9`ʻ’’ʹ\-’]+){0,3}\b")
+
+# Part-of-speech markers used to detect new dictionary entries
+_POS_MARKERS = r"(?:n\.|v\.|adj\.|adv\.|prep\.|conj\.|pron\.|int\.|excl\.|num\.|aux\.|art\.)"
+# A line starts a new entry if first word is followed by a POS marker, source bracket, or numbered def
+_ENTRY_START_RE = re.compile(
+    r"^(?P<headword>[`\u02bb\-]?[a-zA-Z\u0101\u0113\u012b\u014d\u016b\u0100\u0112\u012a\u014c\u016a\u0300-\u0301`\u02bb’\u02b9\-]+(?:,\s*[`\u02bb\-]?[a-zA-Z\u0101\u0113\u012b\u014d\u016b\u0100\u0112\u012a\u014c\u016a`\u02bb’\u02b9\-]+)*)"
+    r"\s+"
+    r"(?P<body>"
+    r"(?:"
+    r"(?:\[[^\]]+\]\s+)?"  # optional [Bib.], [Eng.], etc.
+    r"(?:\d+\.\s+)?"       # optional numbered definition
+    rf"{_POS_MARKERS}"     # POS marker required
+    r"|"
+    r"\d+\.\s+"            # OR starts with numbered definition
+    r"|"
+    r"\[(?:Bib|Eng|Sam|Music|Niutao|Nanumea|Nanumaga|Funafuti|Vaitupu|Nui|Nukufetau|Nukulaelae|Niulakita)\.\]"  # source bracket (not [cf.])
+    r")"
+    r".*)",
+    re.DOTALL,
+)
+# Proper name pair: "Abraham Apelaamo" (both capitalized, no POS marker)
+_NAME_PAIR_RE = re.compile(
+    r"^(?P<headword>[A-Z][a-zA-Z\u0101\u0113\u012b\u014d\u016b\-]+)\s+(?P<body>[A-Z][a-zA-Z\u0101\u0113\u012b\u014d\u016b\-]+)$"
+)
 FLORA_FAUNA_KEYWORDS = {
     "plant",
     "tree",
@@ -58,16 +81,40 @@ FLORA_FAUNA_KEYWORDS = {
 
 
 class SectionTracker:
-    def __init__(self) -> None:
-        self.current = None
+    """Track which section (tvl_en or en_tvl) we're in.
 
-    def update(self, line: str) -> str | None:
-        text = _normalize(line).lower().replace("—", "-")
-        if "tuvaluan-english dictionary" in text:
-            self.current = "tvl_en"
-            return self.current
-        if "english-tuvaluan dictionary" in text:
-            self.current = "en_tvl"
+    Only triggers on short standalone section header lines, not inline mentions.
+    Only returns a value when the section CHANGES (page headers that repeat
+    the current section are suppressed).
+    Ignores switches in the first ~400 lines (front matter / preface).
+    """
+    # The actual dictionary content starts after front matter (~400 lines
+    # in the non-layout extraction). Before that, title page / TOC / preface
+    # contain "Tuvaluan-English" / "English-Tuvaluan" strings that are NOT
+    # section boundaries.
+    MIN_LINE_FOR_SECTION = 400
+
+    def __init__(self) -> None:
+        self.current: str | None = None
+
+    def update(self, line: str, line_no: int = 0) -> str | None:
+        if line_no < self.MIN_LINE_FOR_SECTION:
+            return None
+
+        text = _normalize(line).lower().replace("\u2014", "-")  # em-dash
+        # Only match short standalone lines (< 40 chars) to avoid preface sentences
+        if len(text) > 40:
+            return None
+
+        new_section: str | None = None
+        if text.strip() in ("tuvaluan-english", "tuvaluan-english dictionary"):
+            new_section = "tvl_en"
+        elif text.strip() in ("english-tuvaluan", "english-tuvaluan dictionary"):
+            new_section = "en_tvl"
+
+        # Only fire when section actually changes
+        if new_section and new_section != self.current:
+            self.current = new_section
             return self.current
         return None
 
@@ -160,14 +207,14 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _run_pdftotext(pdf_path: Path, out_path: Path) -> None:
+def _run_pdftotext(pdf_path: Path, out_path: Path, *, layout: bool = False) -> None:
     """Generate plain-text dictionary input via pdftotext."""
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    result = subprocess.run(
-        ["pdftotext", "-layout", str(pdf_path), str(out_path)],
-        capture_output=True,
-        text=True,
-    )
+    cmd = ["pdftotext"]
+    if layout:
+        cmd.append("-layout")
+    cmd.extend([str(pdf_path), str(out_path)])
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(
             f"pdftotext failed for {pdf_path}: {result.stderr.strip() or result.stdout.strip()}"
@@ -188,45 +235,40 @@ def _looks_like_noise_line(line: str) -> bool:
         return True
     if text.startswith("Eng") and "Dictionary" in text:
         return True
+    # Section headers / letter dividers (single uppercase letter)
+    if re.fullmatch(r"[A-Z]", text):
+        return True
+    # "Tuvaluan-English" or "English-Tuvaluan" section headers
+    if re.fullmatch(r"(?:Tuvaluan|English)[\-—](?:Tuvaluan|English)", text):
+        return True
     return False
 
 
-def _parse_entry_cell(cell: str) -> tuple[str, str] | None:
-    cell = _normalize(cell)
-    if not cell:
+def _try_parse_entry_start(line: str) -> tuple[str, str] | None:
+    """Try to parse line as the start of a new dictionary entry.
+
+    Returns (headword, body_start) if this line begins a new entry, else None.
+    Uses POS markers, source brackets, and numbered definitions to identify entries.
+    """
+    text = line.strip()
+    if not text or _looks_like_noise_line(text):
         return None
 
-    # Common front-matter and table line artifacts are dropped early.
-    if _looks_like_noise_line(cell):
-        return None
+    # Try main pattern: headword + POS/bracket/number
+    m = _ENTRY_START_RE.match(text)
+    if m:
+        headword = m.group("headword").strip().rstrip(",")
+        body = m.group("body").strip()
+        # Headword must contain at least one letter (reject "----------")
+        if headword and body and len(headword) <= 60 and any(c.isalpha() for c in headword):
+            return headword, body
 
-    # Keep conservative: headword then one definition block.
-    # We split only on first whitespace after the headword.
-    m = re.match(r"^(?P<lemma>[^\s]{1,120})\s+(?P<body>.+)$", cell)
-    if not m:
-        return None
+    # Try name pair pattern: "Abraham Apelaamo"
+    m = _NAME_PAIR_RE.match(text)
+    if m:
+        return m.group("headword"), m.group("body")
 
-    lemma = m.group("lemma")
-    body = _normalize(m.group("body"))
-
-    if not lemma or not body:
-        return None
-    if len(body) < 6:
-        return None
-    if len(lemma) > 160:
-        return None
-    if lemma.startswith("(") or lemma.endswith(")"):
-        return None
-    if re.fullmatch(r"[\d\-]+", lemma):
-        return None
-    if not any(ch.isalpha() for ch in lemma):
-        return None
-
-    # Heuristic quality scoring for parser confidence.
-    if any(tok in body.lower() for tok in {"see", "see also", "index", "publisher"}):
-        return None
-
-    return lemma, body
+    return None
 
 
 def _is_name_like(text: str) -> bool:
@@ -333,13 +375,23 @@ def extract_dictionary(
     dictionary_text: Path,
     max_entries: int | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, int]]:
-    if not dictionary_text.exists():
+    """Parse dictionary PDF into headword→definition pairs.
+
+    Uses pdftotext WITHOUT -layout to get sequential reading order
+    (left column then right column per page), avoiding the column-merge
+    problem that produced garbage entries in v1.
+
+    Stream-based: accumulates continuation lines until the next headword.
+    """
+    # Re-extract without -layout for clean reading order
+    nolayout_text = dictionary_text.parent / (dictionary_text.stem + "_nolayout.txt")
+    if not nolayout_text.exists():
         if not dictionary_pdf.exists():
             raise FileNotFoundError(f"Missing dictionary PDF: {dictionary_pdf}")
-        dictionary_text.parent.mkdir(parents=True, exist_ok=True)
-        _run_pdftotext(dictionary_pdf, dictionary_text)
+        nolayout_text.parent.mkdir(parents=True, exist_ok=True)
+        _run_pdftotext(dictionary_pdf, nolayout_text, layout=False)
 
-    text = dictionary_text.read_text(encoding="utf-8", errors="replace").splitlines()
+    lines = nolayout_text.read_text(encoding="utf-8", errors="replace").splitlines()
     section = SectionTracker()
     current_section: str | None = None
 
@@ -347,14 +399,113 @@ def extract_dictionary(
     rejected: list[dict[str, Any]] = []
     stats: dict[str, int] = Counter()
 
-    counters = {
-        "tvl_en": 0,
-        "en_tvl": 0,
-    }
+    counters = {"tvl_en": 0, "en_tvl": 0}
 
-    for line_no, line in enumerate(text, start=1):
-        switched = section.update(line)
+    # Stream state: accumulate entry text
+    current_headword: str | None = None
+    current_body_parts: list[str] = []
+    current_start_line: int = 0
+
+    def _emit_entry() -> None:
+        """Emit the accumulated entry as a row."""
+        nonlocal current_headword, current_body_parts, current_start_line
+        if current_headword is None or current_section is None:
+            return
+
+        body = _normalize(" ".join(current_body_parts))
+        lemma = current_headword
+
+        if not body or len(body) < 6:
+            stats["too_short"] += 1
+            rejected.append({
+                "source_file": nolayout_text.name,
+                "source_row": current_start_line,
+                "source_section": current_section,
+                "reason": "too_short",
+                "lemma": lemma,
+                "body": body,
+            })
+            return
+
+        if any(tok in body.lower() for tok in {"see also", "index", "publisher"}):
+            stats["noise_body"] += 1
+            return
+
+        stats["entries_parsed"] += 1
+
+        if current_section == "tvl_en":
+            counters["tvl_en"] += 1
+            if max_entries and counters["tvl_en"] > max_entries:
+                return
+            row_id = f"unstruct:dict_tvl_en:{counters['tvl_en']:06d}"
+            tvl = lemma
+            en = body
+            conf = 0.82
+        else:
+            counters["en_tvl"] += 1
+            if max_entries and counters["en_tvl"] > max_entries:
+                return
+            row_id = f"unstruct:dict_en_tvl:{counters['en_tvl']:06d}"
+            en = lemma
+            tvl = body
+            conf = 0.72
+
+        tvl_n = _normalize(tvl)
+        en_n = _normalize(en)
+        tvl_chars = len(tvl_n)
+        en_chars = len(en_n)
+
+        if tvl_chars < 3 or en_chars < 3:
+            stats["too_short"] += 1
+            rejected.append({
+                "source_file": nolayout_text.name,
+                "source_row": current_start_line,
+                "source_section": current_section,
+                "reason": "too_short",
+                "lemma": lemma,
+                "body": body,
+            })
+            return
+
+        rows.append({
+            "id": row_id,
+            "tvl": tvl_n,
+            "en": en_n,
+            "content_type": "translation_phrase",
+            "domain": "dictionary",
+            "alignment_method": "dictionary_entry",
+            "alignment_confidence": conf,
+            "doc_id": None,
+            "source_url_tvl": dictionary_pdf.as_posix(),
+            "source_url_en": dictionary_pdf.as_posix(),
+            "book_num": None,
+            "chapter": None,
+            "verse": None,
+            "date": None,
+            "pub_code": "unstruct_dictionary",
+            "tvl_chars": tvl_chars,
+            "en_chars": en_chars,
+            "length_ratio": tvl_chars / en_chars if en_chars else 0,
+            "metadata": {
+                "source_file": nolayout_text.name,
+                "source_row": current_start_line,
+                "source_section": current_section,
+                "source_cell": None,
+                "source_pdf_page": None,
+                "parse_mode": "dictionary_stream_v2",
+                "ocr_conf_mean": None,
+                "ocr_conf_p50": None,
+                "text_confidence": "medium",
+                "extractor_version": EXTRACTOR_VERSION,
+            },
+        })
+
+    for line_no, line in enumerate(lines, start=1):
+        switched = section.update(line, line_no=line_no)
         if switched:
+            _emit_entry()
+            current_headword = None
+            current_body_parts = []
             current_section = switched
             stats[f"section_switch_{current_section}"] += 1
             continue
@@ -365,90 +516,23 @@ def extract_dictionary(
         if _looks_like_noise_line(line):
             continue
 
-        cells = [p for p in ENTRY_CELL_SPLIT.split(line.strip()) if p.strip()]
-        if not cells:
-            continue
+        # Try to detect a new entry start
+        parsed = _try_parse_entry_start(line)
+        if parsed:
+            # Emit previous entry
+            _emit_entry()
+            # Start new entry
+            current_headword = parsed[0]
+            current_body_parts = [parsed[1]]
+            current_start_line = line_no
+        elif current_headword is not None:
+            # Continuation of current entry
+            text = line.strip()
+            if text:
+                current_body_parts.append(text)
 
-        # Typical dictionary line format in pdftotext is dual column.
-        # Keep first two chunks to avoid accidental spillover from trailing metadata.
-        for cell_idx, cell in enumerate(cells[:2], start=1):
-            parsed = _parse_entry_cell(cell)
-            if not parsed:
-                stats["unparsed_cells"] += 1
-                continue
-
-            lemma, body = parsed
-            stats["entries_parsed"] += 1
-
-            if current_section == "tvl_en":
-                counters["tvl_en"] += 1
-                if max_entries and counters["tvl_en"] > max_entries:
-                    continue
-                row_id = f"unstruct:dict_tvl_en:{counters['tvl_en']:06d}"
-                tvl = lemma
-                en = body
-                conf = 0.82
-            else:
-                counters["en_tvl"] += 1
-                if max_entries and counters["en_tvl"] > max_entries:
-                    continue
-                row_id = f"unstruct:dict_en_tvl:{counters['en_tvl']:06d}"
-                en = lemma
-                tvl = body
-                conf = 0.72
-
-            tvl_chars = len(_normalize(tvl))
-            en_chars = len(_normalize(en))
-
-            if tvl_chars < 3 or en_chars < 3:
-                stats["too_short"] += 1
-                rejected.append(
-                    {
-                        "source_file": dictionary_text.name,
-                        "source_row": line_no,
-                        "cell": cell_idx,
-                        "source_section": current_section,
-                        "reason": "too_short",
-                        "lemma": lemma,
-                        "body": body,
-                    }
-                )
-                continue
-
-            rows.append(
-                {
-                    "id": row_id,
-                    "tvl": _normalize(tvl),
-                    "en": _normalize(en),
-                    "content_type": "translation_phrase",
-                    "domain": "dictionary",
-                    "alignment_method": "dictionary_entry",
-                    "alignment_confidence": conf,
-                    "doc_id": None,
-                    "source_url_tvl": dictionary_pdf.as_posix(),
-                    "source_url_en": dictionary_pdf.as_posix(),
-                    "book_num": None,
-                    "chapter": None,
-                    "verse": None,
-                    "date": None,
-                    "pub_code": "unstruct_dictionary",
-                    "tvl_chars": tvl_chars,
-                    "en_chars": en_chars,
-                    "length_ratio": tvl_chars / en_chars if en_chars else 0,
-                    "metadata": {
-                        "source_file": dictionary_text.name,
-                        "source_row": line_no,
-                        "source_section": current_section,
-                        "source_cell": cell_idx,
-                        "source_pdf_page": None,
-                        "parse_mode": "dictionary_splitcell_v1",
-                        "ocr_conf_mean": None,
-                        "ocr_conf_p50": None,
-                        "text_confidence": "medium",
-                        "extractor_version": EXTRACTOR_VERSION,
-                    },
-                }
-            )
+    # Emit last entry
+    _emit_entry()
 
     stats["entries_tvl_en"] = counters["tvl_en"]
     stats["entries_en_tvl"] = counters["en_tvl"]

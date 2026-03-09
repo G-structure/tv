@@ -179,20 +179,21 @@ Implemented in `scripts/clean_article_bodies.py`:
 
 #### Remaining fixes
 
-1. **Re-translate collapsed articles** — existing translations were made from
-   dirty single-blob text. With cleaned/paragraphed source, re-run
-   `translate_football.py` on all 41 collapsed articles.
+1. **Re-translate collapsed articles** — IN PROGRESS. Running `--retry-collapsed`
+   on 36 flagged articles with cleaned/paragraphed source + improved pipeline.
 
-2. **Increase MAX_TOKENS** — 512 is too low for even single paragraphs of
-   200+ words. Increase to 1024 or 2048 (check Tinker API limits).
+2. ~~**Increase MAX_TOKENS**~~ DONE — increased from 512 to 1024.
 
-3. **Domain-specific prompt tuning** — add football glossary terms to the
-   system prompt. Instruct the model to preserve loanwords for terms without
-   Tuvaluan equivalents.
+3. ~~**Domain-specific prompt tuning**~~ DONE — system prompt preserves proper
+   nouns as-is, keeps football loanwords (penalty, offside, VAR, etc.).
 
-4. **Temperature + retry is already implemented** — 3 attempts with
-   temperature escalation (0.0 → 0.3 → 0.7). All attempts saved to
-   `translation_attempts` table for RL training.
+4. ~~**Sub-chunking long paragraphs**~~ DONE — paragraphs >150 words split at
+   sentence boundaries before translation.
+
+5. ~~**Stop sequence fix**~~ DONE — added `"\nUser:"` and `"User:"` stop
+   sequences to prevent model looping.
+
+6. **Translate remaining 89 untranslated articles** — after collapsed retries.
 
 11. ### Unstructured language assets (unstruct_lang_data) are not yet in the training graph
 
