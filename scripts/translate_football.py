@@ -56,7 +56,10 @@ REQUEST_DELAY = 0.2  # seconds between API calls
 MAX_PARAGRAPH_WORDS = 150  # sub-chunk paragraphs longer than this
 
 # Temperature escalation for retry on collapse
-TEMPERATURE_SCHEDULE = [0.0, 0.3, 0.7]
+# In CI (--limit flag), only try once to stay within timeout.
+# Manual/retry runs use the full schedule.
+TEMPERATURE_SCHEDULE_FULL = [0.0, 0.3, 0.7]
+TEMPERATURE_SCHEDULE_QUICK = [0.0]
 
 
 def get_api_key() -> str:
@@ -313,17 +316,18 @@ def save_translation(conn: object, article_id: str, translation: dict, attempt_n
 
 def translate_with_retry(
     client: httpx.Client, api_key: str, conn: object,
-    article: object,
+    article: object, schedule: list[float] | None = None,
 ) -> bool:
     """Translate an article with up to 3 attempts using escalating temperature.
 
     All attempts are recorded. The best non-collapsed attempt (or last attempt
     if all collapse) is saved as the active translation.
     """
+    temps = schedule or TEMPERATURE_SCHEDULE_FULL
     best_translation = None
     best_attempt = 0
 
-    for attempt_idx, temperature in enumerate(TEMPERATURE_SCHEDULE):
+    for attempt_idx, temperature in enumerate(temps):
         attempt_num = attempt_idx + 1
         print(f"  Attempt {attempt_num}/3 (temp={temperature})...", flush=True)
 
@@ -412,6 +416,12 @@ def main():
             return
         print(f"Found {len(articles)} articles to translate")
 
+    # Use quick schedule (1 attempt) when --limit is set (CI mode)
+    # Use full schedule (3 attempts) for manual/retry runs
+    schedule = TEMPERATURE_SCHEDULE_QUICK if args.limit else TEMPERATURE_SCHEDULE_FULL
+    if args.retry_collapsed:
+        schedule = TEMPERATURE_SCHEDULE_FULL
+
     client = httpx.Client(http2=True)
     translated = 0
     failed = 0
@@ -420,7 +430,7 @@ def main():
         title_preview = article["title_en"][:60]
         print(f"\n  Translating: {title_preview}...", flush=True)
 
-        if translate_with_retry(client, api_key, conn, article):
+        if translate_with_retry(client, api_key, conn, article, schedule=schedule):
             translated += 1
         else:
             failed += 1
