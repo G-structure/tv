@@ -24,8 +24,7 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 
 from clean_article_bodies import clean_body, split_into_paragraphs
-
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "football" / "football.db"
+from db_conn import get_db
 SOURCE_ID = "sky"
 
 SITEMAP_URL = "https://www.skysports.com/sitemap/sitemap-news.xml"
@@ -50,10 +49,6 @@ SECTION_MAP = {
 }
 
 
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
 
 
 def fetch_sitemap(client: httpx.Client) -> list[str]:
@@ -283,11 +278,11 @@ def scrape_article(client: httpx.Client, url: str) -> dict | None:
     return extract_article(resp.text, url)
 
 
-def insert_article(conn: sqlite3.Connection, article: dict) -> bool:
+def insert_article(conn, article: dict) -> bool:
     """Insert article into DB. Returns True if new, False if duplicate."""
     try:
         conn.execute(
-            """INSERT INTO articles
+            """INSERT OR IGNORE INTO articles
                (id, source_id, url, title_en, body_en, author, published_at,
                 category, tags, image_url, image_alt, image_width, image_height,
                 og_description_en, word_count)
@@ -311,7 +306,7 @@ def insert_article(conn: sqlite3.Connection, article: dict) -> bool:
             ),
         )
         return True
-    except sqlite3.IntegrityError:
+    except (sqlite3.IntegrityError, RuntimeError):
         return False
 
 
@@ -319,10 +314,6 @@ def main():
     parser = argparse.ArgumentParser(description="Scrape Sky Sports football articles")
     parser.add_argument("--limit", type=int, help="Max articles to scrape")
     args = parser.parse_args()
-
-    if not DB_PATH.exists():
-        print(f"Database not found at {DB_PATH}. Run init_football_db.py first.")
-        return
 
     conn = get_db()
 

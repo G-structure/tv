@@ -27,9 +27,8 @@ from pathlib import Path
 import httpx
 from tqdm import tqdm
 
+from db_conn import get_db
 from detect_collapse import is_collapsed, collapse_score
-
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "football" / "football.db"
 
 # Tinker API config
 TINKER_BASE = "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1"
@@ -75,11 +74,6 @@ def get_api_key() -> str:
     return key
 
 
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
 
 
 _SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])\s+(?=[A-Z])")
@@ -197,7 +191,7 @@ def translate_text(
 
 
 def translate_article(
-    client: httpx.Client, api_key: str, article: sqlite3.Row,
+    client: httpx.Client, api_key: str, article: object,
     temperature: float = 0.0,
 ) -> dict | None:
     """Translate an entire article (title + body + OG description)."""
@@ -263,7 +257,7 @@ def translate_article(
     }
 
 
-def save_attempt(conn: sqlite3.Connection, article_id: str, translation: dict, attempt_num: int):
+def save_attempt(conn: object, article_id: str, translation: dict, attempt_num: int):
     """Record a translation attempt (for RL training data)."""
     conn.execute(
         """INSERT INTO translation_attempts
@@ -289,7 +283,7 @@ def save_attempt(conn: sqlite3.Connection, article_id: str, translation: dict, a
     conn.commit()
 
 
-def save_translation(conn: sqlite3.Connection, article_id: str, translation: dict, attempt_num: int):
+def save_translation(conn: object, article_id: str, translation: dict, attempt_num: int):
     """Insert or replace translation in the database."""
     conn.execute(
         """INSERT OR REPLACE INTO translations
@@ -315,8 +309,8 @@ def save_translation(conn: sqlite3.Connection, article_id: str, translation: dic
 
 
 def translate_with_retry(
-    client: httpx.Client, api_key: str, conn: sqlite3.Connection,
-    article: sqlite3.Row,
+    client: httpx.Client, api_key: str, conn: object,
+    article: object,
 ) -> bool:
     """Translate an article with up to 3 attempts using escalating temperature.
 
@@ -360,8 +354,8 @@ def translate_with_retry(
 
 
 def get_untranslated_articles(
-    conn: sqlite3.Connection, limit: int | None = None, article_id: str | None = None
-) -> list[sqlite3.Row]:
+    conn: object, limit: int | None = None, article_id: str | None = None
+) -> list[object]:
     """Get articles that don't have translations yet."""
     if article_id:
         return list(
@@ -381,7 +375,7 @@ def get_untranslated_articles(
     return list(conn.execute(query).fetchall())
 
 
-def get_collapsed_articles(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def get_collapsed_articles(conn: object) -> list[object]:
     """Get articles whose current translation is flagged as collapsed."""
     return list(conn.execute(
         """SELECT a.* FROM articles a

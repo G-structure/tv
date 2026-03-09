@@ -21,6 +21,8 @@ on:
 
 env:
   PYTHONPATH: scripts
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
 
 jobs:
   pipeline:
@@ -34,29 +36,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Install Python dependencies
         run: pip install "httpx[http2]" beautifulsoup4 html5lib lxml tqdm
 
-      - name: Install wrangler
-        run: npm install -g wrangler
-
-      # Restore DB from previous run (or start fresh)
-      - name: Restore cached database
-        uses: actions/cache/restore@v4
-        with:
-          path: data/football/football.db
-          key: football-db-${{ github.run_number }}
-          restore-keys: |
-            football-db-
-
-      - name: Initialize database (if needed)
-        run: python scripts/init_football_db.py
-
-      # --- SCRAPE ---
+      # --- SCRAPE (writes directly to D1) ---
       - name: Scrape Goal.com
         if: ${{ github.event_name == 'schedule' || !inputs.translate_only }}
         run: python scripts/scrape_football_goal.py ${{ inputs.limit > 0 && format('--limit {0}', inputs.limit) || '' }}
@@ -72,44 +55,10 @@ jobs:
         run: python scripts/scrape_football_sky.py ${{ inputs.limit > 0 && format('--limit {0}', inputs.limit) || '' }}
         continue-on-error: true
 
-      # --- TRANSLATE ---
+      # --- TRANSLATE (reads from D1, writes to D1) ---
       - name: Translate new articles
         if: ${{ github.event_name == 'schedule' || !inputs.scrape_only }}
         env:
           TINKER_API_KEY: ${{ secrets.TINKER_API_KEY }}
         run: python scripts/translate_football.py ${{ inputs.limit > 0 && format('--limit {0}', inputs.limit) || '' }}
         continue-on-error: true
-
-      # --- SYNC TO D1 ---
-      - name: Sync database to Cloudflare D1
-        env:
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: python scripts/sync_to_d1.py
-
-      # --- CACHE DB ---
-      - name: Cache database for next run
-        if: always()
-        uses: actions/cache/save@v4
-        with:
-          path: data/football/football.db
-          key: football-db-${{ github.run_number }}
-
-      # --- SUMMARY ---
-      - name: Print stats
-        if: always()
-        run: |
-          python -c "
-          import sqlite3, pathlib
-          db = pathlib.Path('data/football/football.db')
-          if not db.exists():
-              print('No database found'); exit()
-          conn = sqlite3.connect(str(db))
-          print('--- Article counts ---')
-          for row in conn.execute('SELECT source_id, COUNT(*) FROM articles GROUP BY source_id'):
-              print(f'  {row[0]:6s}: {row[1]:4d} articles')
-          total = conn.execute('SELECT COUNT(*) FROM articles').fetchone()[0]
-          translated = conn.execute('SELECT COUNT(*) FROM translations').fetchone()[0]
-          collapsed = conn.execute('SELECT COUNT(*) FROM translations WHERE is_collapsed = 1').fetchone()[0]
-          print(f'  {"total":6s}: {total:4d} articles, {translated} translated, {collapsed} collapsed')
-          "

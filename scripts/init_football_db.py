@@ -7,6 +7,8 @@ Usage:
 import sqlite3
 from pathlib import Path
 
+from db_conn import get_db, is_d1_mode
+
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "football" / "football.db"
 
 SCHEMA = """
@@ -118,17 +120,32 @@ SEED_SOURCES = [
 
 
 def init_db():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.executescript(SCHEMA)
-    for source_id, name in SEED_SOURCES:
-        conn.execute(
-            "INSERT OR IGNORE INTO sources (id, name) VALUES (?, ?)",
-            (source_id, name),
-        )
-    conn.commit()
-    conn.close()
-    print(f"Database initialized at {DB_PATH}")
+    if is_d1_mode():
+        conn = get_db()
+        # D1: execute each statement individually (no executescript)
+        for stmt in SCHEMA.split(";"):
+            stmt = stmt.strip()
+            if stmt:
+                conn.execute(stmt)
+        for source_id, name in SEED_SOURCES:
+            conn.execute(
+                "INSERT OR IGNORE INTO sources (id, name) VALUES (?, ?)",
+                (source_id, name),
+            )
+        conn.close()
+        print("Database initialized on Cloudflare D1")
+    else:
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.executescript(SCHEMA)
+        for source_id, name in SEED_SOURCES:
+            conn.execute(
+                "INSERT OR IGNORE INTO sources (id, name) VALUES (?, ?)",
+                (source_id, name),
+            )
+        conn.commit()
+        conn.close()
+        print(f"Database initialized at {DB_PATH}")
     print(f"  Sources: {', '.join(n for _, n in SEED_SOURCES)}")
 
 

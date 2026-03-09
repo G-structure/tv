@@ -24,8 +24,7 @@ import httpx
 from tqdm import tqdm
 
 from clean_article_bodies import clean_body
-
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "football" / "football.db"
+from db_conn import get_db
 SOURCE_ID = "fifa"
 
 API_BASE = "https://cxm-api.fifa.com/fifaplusweb/api"
@@ -74,10 +73,6 @@ PATH_CATEGORY_MAP = {
 }
 
 
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
 
 
 def fetch_sitemap_page(client: httpx.Client, page: int) -> list[str]:
@@ -295,11 +290,11 @@ def extract_article(
         return None
 
 
-def insert_article(conn: sqlite3.Connection, article: dict) -> bool:
+def insert_article(conn, article: dict) -> bool:
     """Insert article into DB. Returns True if new, False if duplicate."""
     try:
         conn.execute(
-            """INSERT INTO articles
+            """INSERT OR IGNORE INTO articles
                (id, source_id, url, title_en, body_en, author, published_at,
                 category, tags, image_url, image_alt, image_width, image_height,
                 og_description_en, word_count)
@@ -323,7 +318,7 @@ def insert_article(conn: sqlite3.Connection, article: dict) -> bool:
             ),
         )
         return True
-    except sqlite3.IntegrityError:
+    except (sqlite3.IntegrityError, RuntimeError):
         return False
 
 
@@ -334,10 +329,6 @@ def main():
         "--pages", type=int, default=3, help="Max sitemap pages to fetch (default: 3)"
     )
     args = parser.parse_args()
-
-    if not DB_PATH.exists():
-        print(f"Database not found at {DB_PATH}. Run init_football_db.py first.")
-        return
 
     conn = get_db()
 
