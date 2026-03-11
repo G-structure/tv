@@ -48,47 +48,67 @@ tv/
 
 ## Dataset
 
-### Sources
+### All Data Sources
 
-All parallel text is scraped from JW.org / Watchtower Online Library using Docker `curl-impersonate` (required — jw.org blocks standard HTTP clients via TLS fingerprint detection).
+Every source of TVL↔EN parallel data, sorted by token contribution to training. Two pipelines feed the final dataset: the **main pipeline** (JW.org + online dictionary → clean → splits → render) and the **unstructured seed** (PDFs, OCR, scraped corpora → ingest → merge).
 
-| Source | Alignment | Pairs | ~Tokens | Quality |
-|---|---|---|---|---|
-| **Bible** (66 books, 1,189 chapters) | Verse-level by `span.v` ID | 30,838 | 2.2M | Highest — structural 1:1 |
-| **Articles** (7,255 docIds, 22 pub codes) | Paragraph-level by `data-pid` | 275,430 | 34.8M | High — attribute matching |
-| **Daily text** (2017–2025, 3,287 dates) | Date-level | 3,432 | 1.8M | High — date alignment |
-| **Tuvalu app** (expressions) | Expression-level | 1,009 | 5K | High — curated |
-| **Total raw** | | **310,709** | **~38.8M** | |
+| # | Source | Origin | Raw Pairs | Train Examples | ~Tokens | % |
+|---|--------|--------|----------:|---------------:|--------:|---:|
+| 1 | **JW.org Articles** — 7,255 docIds, 22 pub codes | WOL paragraph alignment | 275,430 | 247,236 | 57.5M | 77.2% |
+| 2 | **Bible** — 66 books, 1,189 chapters | Verse-level by `span.v` ID | 30,838 | 60,862 | 8.5M | 11.5% |
+| 3 | **Daily Text** — 2017–2025, 3,287 dates | Date-level 3-day page | 3,432 | 5,828 | 3.7M | 5.0% |
+| 4 | **Dictionary PDF** — Tuvaluan-Palagi physical dictionary | `build_unstructured_seed.py` OCR extraction | 20,084 | 39,368 | 2.9M | 3.9% |
+| 5 | **Corpus v2** — tuvalu.aa-ken.jp bilingual corpus | Word/expression JSON pairs | 3,658 | 7,316 | 536K | 0.7% |
+| 6 | **Grammar** — Besnier's Tuvaluan descriptive grammar | Interlinear gloss extraction | 2,333 | 4,658 | 412K | 0.6% |
+| 7 | **Online Dictionary** — tuvalu.aa-ken.jp (words + app) | Scraped 157 categories + 42 JSON endpoints | 4,421 | 7,366 | 407K | 0.5% |
+| 8 | **Paired PDFs** — 16 government docs (health, budget, climate) | EN/TVL paragraph alignment | 573 | 1,138 | 191K | 0.3% |
+| 9 | **Fishes** — Thaman 2015, Appendix III columnar table | TVL name ↔ EN common name | 998 | 1,996 | 146K | 0.2% |
+| 10 | **Flora** — Thaman 2016, annotated systematic listing | TVL name ↔ EN common name | 436 | 850 | 61K | 0.1% |
+| 11 | **Toku Atufenua Pele** — bilingual children's essays | Language detection + paragraph pairing | 80 | 160 | 23K | <0.1% |
+| 12 | **Bilingual Gov Docs** — Family Tax, Child Care (AU) | TUVALUAN/ENGLISH header segmentation | 24 | 48 | 20K | <0.1% |
+| 13 | **Te Papa Activity Book** — vocabulary lists | Manual extraction | 83 | 128 | 9K | <0.1% |
+| 14 | **Nanumea Tales** — 2 oral tradition transcripts | Numbered paragraph alignment | 43 | 28 | 8K | <0.1% |
+| 15 | **Language Cards** — MPP bilingual phrase cards | Two-column layout extraction | 45 | 88 | 7K | <0.1% |
+| 16 | **Pai & Vau** — bilingual children's book | Alternating EN/TVL paragraph detection | 12 | 24 | 4K | <0.1% |
+| 17 | **Tatoeba** — community sentence pairs | Direct download | 14 | 26 | 2K | <0.1% |
+| 18 | **Mormon Prayer** — sacrament prayer JPG pair | Tesseract OCR | 1 | 2 | 1K | <0.1% |
+| | **TOTAL** | | **342,505** | **377,122** | **~74.6M** | **100%** |
 
-Plus unstructured seed data mined from a Tuvaluan-English dictionary (20,098 entries) and Tatoeba (14 sentence pairs).
+Sources 1–3 and 7 go through the main pipeline (scrape → clean → decontaminated splits → render). Sources 4–6 and 8–18 go through the unstructured seed pipeline (extract → quality cleanup → relaxed-threshold chat format → merge into training).
+
+Vocabulary entries (dictionary words, species names, short phrases) use dedicated **vocabulary templates** ("What does X mean in English?", "How do you say X in Tuvaluan?") with a dictionary-specific system prompt. Sentence/paragraph entries use standard translation templates.
+
+### Pipeline
+
+```
+data/aligned/*.jsonl ──→ clean_pipeline.py ──→ build_splits.py ──→ render_training_data.py ──→ train_balanced.jsonl
+                                                                            ↑
+data/external/stage_a_seed/*.jsonl ──→ build_stage_a_mt_data.py ────────────┘ (--include-unstructured)
+        ↑
+ingest_new_unstruct.py (12 sources)
+build_unstructured_seed.py (dictionary PDF, Tatoeba)
+```
 
 ### Cleaning
 
-`scripts/clean_pipeline.py` reads immutable raw data and applies: NFC normalization → ID deduplication → content hash deduplication → metadata/boilerplate filtering → identical-pair removal → length ratio filtering.
+`scripts/clean_pipeline.py` reads immutable raw data from `data/aligned/` and applies: NFC normalization → macron correction (430 dictionary→corpus mappings) → glottal stop normalization → ID deduplication → content hash deduplication → metadata/boilerplate filtering → pub ref stripping → identical-pair removal → length ratio filtering. Dictionary entries use relaxed thresholds (`min_chars: 1`, `ratio_min: 0.005`).
 
 | Metric | Value |
 |---|---|
-| Raw input | 310,709 pairs |
-| Accepted (balanced profile) | 178,371 pairs (57.6%) |
-| Rejected | 131,329 (90% duplicate IDs from overlapping crawls) |
-| Cleaned tokens | ~24M |
+| Raw input | 314,121 pairs |
+| Accepted (balanced profile) | 176,157 pairs (56.1%) |
+| Rejected | 137,964 (90% duplicate IDs from overlapping crawls) |
 
 ### Decontaminated Splits
 
-`scripts/build_splits.py` creates leak-proof splits via a 5-phase pipeline:
+`scripts/build_splits.py` creates leak-proof splits via a 5-phase pipeline: doc-level assignment → n-gram indexing → cross-source decontamination → validation → output.
 
-1. **Doc-level assignment** — Bible split by whole book; articles/daily text by hashed `doc_id`/`date` buckets
-2. **N-gram indexing** — 10-gram sets from held-out Bible verses
-3. **Cross-source decontamination** — quarantine training rows that share exact text or 10-grams with test/val
-4. **Validation** — zero-overlap checks across all dimensions
-5. **Output** — clean train/val/test JSONL
-
-| Split | Pairs | TVL chars | EN chars |
-|---|---|---|---|
-| Train | 161,916 | 48.0M | 38.9M |
-| Validation | 7,435 | 2.4M | 2.0M |
-| Test | 7,467 | 2.4M | 1.9M |
-| Quarantined | 1,553 | — | — |
+| Split | Pairs | Content |
+|---|---|---|
+| Train | 160,646 | 123,618 articles + 30,431 Bible + 3,541 words + 2,914 daily text + 142 expressions |
+| Validation | 7,272 | 6,766 articles + 206 words + 159 daily text + 132 Bible + 9 expressions |
+| Test | 7,407 | 6,884 articles + 229 words + 156 daily text + 134 Bible + 4 expressions |
+| Quarantined | 832 | |
 
 **Held-out Bible books:** Test: Ruth, Philemon, Jude. Validation: Obadiah, Haggai, Titus, 2 John, 3 John.
 
@@ -98,11 +118,11 @@ Plus unstructured seed data mined from a Tuvaluan-English dictionary (20,098 ent
 
 | File | Examples | ~Tokens |
 |---|---|---|
-| `train_balanced.jsonl` | 360,106 | ~68M |
-| `validation.jsonl` | 14,870 | ~3.2M |
-| `test.jsonl` | 14,934 | ~3.2M |
+| `train_balanced.jsonl` | 377,122 | ~74.6M |
+| `validation.jsonl` | 14,544 | ~3.1M |
+| `test.jsonl` | 14,814 | ~3.2M |
 
-Training composition: 71% articles, 17% Bible, 10% dictionary seed, 2% daily text.
+Composition: 65.6% articles, 16.1% Bible, 10.4% dictionary, 1.5% daily text, 4.6% vocabulary-template entries, 1.8% other external sources.
 
 For the full data pipeline reference, see [docs/DATA_PIPELINE.md](docs/DATA_PIPELINE.md).
 
