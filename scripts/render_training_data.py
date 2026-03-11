@@ -40,6 +40,11 @@ SYSTEM_PROMPT = (
     "and structure when possible. Output only the translation."
 )
 
+SYSTEM_PROMPT_VOCAB = (
+    "You are a Tuvaluan-English dictionary and vocabulary expert. "
+    "Give concise translations and definitions. Output only the translation."
+)
+
 TVL_TO_EN_TEMPLATES = [
     "Translate from Tuvaluan to English:\n\n{source}",
     "Translate the following Tuvaluan text into English. Preserve formatting and do not add commentary.\n\n{source}",
@@ -52,6 +57,28 @@ EN_TO_TVL_TEMPLATES = [
     "Convert this English text to Tuvaluan while keeping the original structure when possible.\n\n{source}",
 ]
 
+# Vocabulary / dictionary templates — used for short entries (words, phrases, species names)
+TVL_TO_EN_VOCAB_TEMPLATES = [
+    "What does the Tuvaluan word \"{source}\" mean in English?",
+    "Define the Tuvaluan word: {source}",
+    "Translate the Tuvaluan word to English: {source}",
+    "What is the English meaning of \"{source}\"?",
+    "Give the English translation of the Tuvaluan word: {source}",
+]
+
+EN_TO_TVL_VOCAB_TEMPLATES = [
+    "What is the Tuvaluan word for \"{source}\"?",
+    "Translate to Tuvaluan: {source}",
+    "How do you say \"{source}\" in Tuvaluan?",
+    "Give the Tuvaluan translation of: {source}",
+    "What is \"{source}\" in Tuvaluan?",
+]
+
+# Content types that should use vocabulary templates
+_VOCAB_CONTENT_TYPES = {
+    "word", "expression", "translation_phrase",
+}
+
 
 def _stable_hash(value: str) -> int:
     return int(hashlib.sha256(value.encode("utf-8")).hexdigest(), 16)
@@ -63,11 +90,30 @@ def _normalize_preserve_structure(text: str) -> str:
     return "\n".join(lines).strip()
 
 
-def _choose_template(row_id: str, direction: str) -> tuple[str, int]:
-    if direction == "tvl_to_en":
-        templates = TVL_TO_EN_TEMPLATES
+def _is_vocab_entry(row: dict[str, Any]) -> bool:
+    """Return True if this row is a vocabulary/dictionary entry (not a sentence)."""
+    ct = row.get("content_type", "")
+    if ct in _VOCAB_CONTENT_TYPES:
+        return True
+    # Also catch short entries from any source
+    tvl_chars = row.get("tvl_chars") or len(str(row.get("tvl", "")))
+    en_chars = row.get("en_chars") or len(str(row.get("en", "")))
+    if tvl_chars < 30 and en_chars < 80:
+        return True
+    return False
+
+
+def _choose_template(row_id: str, direction: str, *, vocab: bool = False) -> tuple[str, int]:
+    if vocab:
+        if direction == "tvl_to_en":
+            templates = TVL_TO_EN_VOCAB_TEMPLATES
+        else:
+            templates = EN_TO_TVL_VOCAB_TEMPLATES
     else:
-        templates = EN_TO_TVL_TEMPLATES
+        if direction == "tvl_to_en":
+            templates = TVL_TO_EN_TEMPLATES
+        else:
+            templates = EN_TO_TVL_TEMPLATES
     idx = _stable_hash(f"{row_id}::{direction}") % len(templates)
     return templates[idx], idx
 
@@ -83,18 +129,21 @@ def render_example(row: dict[str, Any], direction: str) -> dict[str, Any]:
         tgt = _normalize_preserve_structure(str(row["tvl"]))
         src_lang, tgt_lang = "en", "tvl"
 
-    template, template_idx = _choose_template(str(row["id"]), direction)
+    vocab = _is_vocab_entry(row)
+    template, template_idx = _choose_template(str(row["id"]), direction, vocab=vocab)
+    system_prompt = SYSTEM_PROMPT_VOCAB if vocab else SYSTEM_PROMPT
     metadata = dict(row)
     metadata.update({
         "direction": direction,
         "source_lang": src_lang,
         "target_lang": tgt_lang,
         "template_idx": template_idx,
+        "vocab_template": vocab,
     })
     return {
         "id": f"{row['id']}::{direction}",
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": template.format(source=src)},
             {"role": "assistant", "content": tgt},
         ],

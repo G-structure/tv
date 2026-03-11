@@ -148,7 +148,10 @@ def main() -> None:
         datasets = DEFAULT_DATASETS
 
     output_dir = Path(args.output)
-    budget_manager = BudgetManager(total_budget=args.budget)
+    # Pre-allocate equal budget per dataset to avoid first-come-takes-all bug
+    per_dataset = args.budget // max(len(datasets), 1)
+    allocations = {ds: per_dataset for ds in datasets}
+    budget_manager = BudgetManager(total_budget=args.budget, allocations=allocations)
 
     logger.info("Building Stage B sources: %d datasets, budget=%s", len(datasets), format_token_count(args.budget))
     if args.limit:

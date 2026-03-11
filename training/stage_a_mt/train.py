@@ -147,34 +147,37 @@ def _run_gen_eval(
 
     n = len(dataset)
     predictions: list[dict[str, Any]] = [None] * n  # type: ignore[list-item]
-    for window_start in range(0, n, parallel):
-        window_end = min(window_start + parallel, n)
-        futures = []
-        for idx in range(window_start, window_end):
-            row = dataset[idx]
-            messages = row["messages"]
-            prompt = renderer.build_generation_prompt(messages[:-1])
-            future = sampling_client.sample(
-                prompt, sampling_params=sampling_params, num_samples=1
-            )
-            futures.append((idx, row, future))
-        for idx, row, future in futures:
-            result = future.result()
-            output_tokens = result.sequences[0].tokens
-            response_message, _ok = renderer.parse_response(output_tokens)
-            pred_text = ""
-            if isinstance(response_message, dict):
-                pred_text = str(response_message.get("content", ""))
-            else:
-                pred_text = str(response_message)
-            messages = row["messages"]
-            predictions[idx] = {
-                "prediction": pred_text,
-                "reference": messages[-1]["content"],
-                "direction": row.get("metadata", {}).get("direction"),
-                "domain": row.get("metadata", {}).get("domain"),
-            }
-        logger.info("Gen eval: scored %d / %d", window_end, n)
+
+    # Fire ALL futures upfront so Tinker can pipeline them
+    all_futures: list[tuple[int, dict[str, Any], Any]] = []
+    for idx in range(n):
+        row = dataset[idx]
+        messages = row["messages"]
+        prompt = renderer.build_generation_prompt(messages[:-1])
+        future = sampling_client.sample(
+            prompt, sampling_params=sampling_params, num_samples=1
+        )
+        all_futures.append((idx, row, future))
+
+    # Collect results, logging progress every `parallel` samples
+    for i, (idx, row, future) in enumerate(all_futures):
+        result = future.result()
+        output_tokens = result.sequences[0].tokens
+        response_message, _ok = renderer.parse_response(output_tokens)
+        pred_text = ""
+        if isinstance(response_message, dict):
+            pred_text = str(response_message.get("content", ""))
+        else:
+            pred_text = str(response_message)
+        messages = row["messages"]
+        predictions[idx] = {
+            "prediction": pred_text,
+            "reference": messages[-1]["content"],
+            "direction": row.get("metadata", {}).get("direction"),
+            "domain": row.get("metadata", {}).get("domain"),
+        }
+        if (i + 1) % parallel == 0 or (i + 1) == n:
+            logger.info("Gen eval: scored %d / %d", i + 1, n)
 
     return compute_translation_metrics(predictions)
 
@@ -211,9 +214,8 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     _tokenizer, renderer, renderer_name = get_renderer(model_name)
 
     train_on_what = _get_train_on_what(cfg["train_on_what"])
-    train_dataset = _load_split(data_path, "train")
-    train_dataset = train_dataset.shuffle(seed=cfg["seed"])
-    logger.info("Loaded %d training examples", len(train_dataset))
+    train_dataset_raw = _load_split(data_path, "train")
+    logger.info("Loaded %d training examples", len(train_dataset_raw))
 
     val_dataset = None
     if val_path.exists():
@@ -250,7 +252,7 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     from tinker_cookbook.supervised.common import compute_mean_nll  # type: ignore
     from tinker_cookbook.supervised.data import conversation_to_datum  # type: ignore
 
-    steps_per_epoch = math.ceil(len(train_dataset) / cfg["batch_size"])
+    steps_per_epoch = math.ceil(len(train_dataset_raw) / cfg["batch_size"])
     total_steps = steps_per_epoch * cfg["epochs"]
     logger.info("Training for %d epochs, %d total steps", cfg["epochs"], total_steps)
 
@@ -263,16 +265,25 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
             "data_path": str(data_path),
             "log_path": str(log_path),
             "total_steps": total_steps,
-            "train_examples": len(train_dataset),
+            "train_examples": len(train_dataset_raw),
         },
     )
     save_manifest(manifest, log_path / "manifest.json")
 
     final_metrics: dict[str, Any] = {}
+    current_epoch = -1
+    train_dataset = train_dataset_raw  # will be reshuffled per epoch
 
     for global_step in range(start_step, total_steps):
         epoch = global_step // steps_per_epoch
         step_in_epoch = global_step % steps_per_epoch
+
+        # Reshuffle at the start of each epoch with a different seed
+        if epoch != current_epoch:
+            epoch_seed = cfg["seed"] + epoch
+            train_dataset = train_dataset_raw.shuffle(seed=epoch_seed)
+            logger.info("Epoch %d: reshuffled training data (seed=%d)", epoch, epoch_seed)
+            current_epoch = epoch
         batch_start = step_in_epoch * cfg["batch_size"]
         batch_end = min(batch_start + cfg["batch_size"], len(train_dataset))
         rows = train_dataset.select(range(batch_start, batch_end))

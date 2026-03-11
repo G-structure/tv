@@ -103,52 +103,51 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         temperature=cfg["temperature"],
     )
 
-    parallel = cfg.get("parallel", 8)
+    parallel = cfg.get("parallel", 512)
     predictions: list[dict[str, Any]] = [None] * len(dataset)  # type: ignore[list-item]
     parse_success_count = 0
     n = len(dataset)
 
-    # Process in windows of `parallel` concurrent requests
-    for window_start in range(0, n, parallel):
-        window_end = min(window_start + parallel, n)
-        # Fire off all sample requests in this window
-        futures = []
-        for idx in range(window_start, window_end):
-            row = dataset[idx]
-            messages = row["messages"]
-            prompt = renderer.build_generation_prompt(messages[:-1])
-            future = sampling_client.sample(
-                prompt, sampling_params=sampling_params, num_samples=1
-            )
-            futures.append((idx, row, future))
+    # Fire ALL sample requests upfront so Tinker can pipeline them
+    all_futures: list[tuple[int, dict[str, Any], Any]] = []
+    for idx in range(n):
+        row = dataset[idx]
+        messages = row["messages"]
+        prompt = renderer.build_generation_prompt(messages[:-1])
+        future = sampling_client.sample(
+            prompt, sampling_params=sampling_params, num_samples=1
+        )
+        all_futures.append((idx, row, future))
+    logger.info("Fired %d sample requests", n)
 
-        # Collect results
-        for idx, row, future in futures:
-            result = future.result()
-            output_tokens = result.sequences[0].tokens
-            response_message, parse_success = renderer.parse_response(output_tokens)
-            if parse_success:
-                parse_success_count += 1
+    # Collect results, logging progress every `parallel` samples
+    for i, (idx, row, future) in enumerate(all_futures):
+        result = future.result()
+        output_tokens = result.sequences[0].tokens
+        response_message, parse_success = renderer.parse_response(output_tokens)
+        if parse_success:
+            parse_success_count += 1
 
-            prediction_text = ""
-            if isinstance(response_message, dict):
-                prediction_text = str(response_message.get("content", ""))
-            else:
-                prediction_text = str(response_message)
+        prediction_text = ""
+        if isinstance(response_message, dict):
+            prediction_text = str(response_message.get("content", ""))
+        else:
+            prediction_text = str(response_message)
 
-            messages = row["messages"]
-            record = {
-                "id": row.get("id", idx),
-                "prediction": prediction_text,
-                "reference": messages[-1]["content"],
-                "direction": row.get("metadata", {}).get("direction"),
-                "domain": row.get("metadata", {}).get("domain"),
-                "content_type": row.get("metadata", {}).get("content_type"),
-                "parse_success": bool(parse_success),
-            }
-            predictions[idx] = record
+        messages = row["messages"]
+        record = {
+            "id": row.get("id", idx),
+            "prediction": prediction_text,
+            "reference": messages[-1]["content"],
+            "direction": row.get("metadata", {}).get("direction"),
+            "domain": row.get("metadata", {}).get("domain"),
+            "content_type": row.get("metadata", {}).get("content_type"),
+            "parse_success": bool(parse_success),
+        }
+        predictions[idx] = record
 
-        logger.info("Scored %d / %d", window_end, n)
+        if (i + 1) % parallel == 0 or (i + 1) == n:
+            logger.info("Scored %d / %d", i + 1, n)
 
     write_jsonl(out_dir / "predictions.jsonl", predictions)
 

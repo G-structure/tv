@@ -27,7 +27,7 @@ def _load_hf(
     """Lazy HuggingFace datasets.load_dataset wrapper."""
     from datasets import load_dataset  # type: ignore
 
-    return load_dataset(path, name, split=split, streaming=streaming, trust_remote_code=True)
+    return load_dataset(path, name, split=split, streaming=streaming)
 
 
 def _limit_iter(ds: Any, limit: int | None) -> Iterator[Any]:
@@ -205,8 +205,8 @@ def load_mbpp(
     Schema: {"text": str, "code": str, "test_list": list[str], "task_id": int}
     The "text" is the prompt, "code" is the solution.
     """
-    # mbpp has "full" name for the sanitized version
-    ds = _load_hf("Muennighoff/mbpp", split=split)
+    # google-research-datasets/mbpp has parquet (Muennighoff/mbpp uses deprecated scripts)
+    ds = _load_hf("google-research-datasets/mbpp", split=split)
     for i, row in enumerate(_limit_iter(ds, limit)):
         prompt = row.get("text", "")
         code = row.get("code", "")
@@ -288,7 +288,8 @@ def load_cnn_dailymail(
 
     Schema: {"article": str, "highlights": str, "id": str}
     """
-    ds = _load_hf("ccdv/cnn_dailymail", name="3.0.0", split=split)
+    # abisee/cnn_dailymail has parquet (ccdv uses deprecated scripts)
+    ds = _load_hf("abisee/cnn_dailymail", name="3.0.0", split=split)
     for i, row in enumerate(_limit_iter(ds, limit)):
         article = row.get("article", "")
         highlights = row.get("highlights", "")

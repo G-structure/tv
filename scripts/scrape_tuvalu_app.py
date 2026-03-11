@@ -14,7 +14,9 @@ Usage:
 """
 
 import json
+import re
 import sys
+import unicodedata
 from pathlib import Path
 
 from tqdm import tqdm
@@ -56,6 +58,123 @@ WORD_CATEGORIES = [
     {"category": "Useful Expressions", "subCategory": ["Useful Expressions"]},
     {"category": "Interrogatives", "subCategory": ["Interrogatives"]},
 ]
+
+
+SOURCE_URL = "https://tuvalu.aa-ken.jp/webapp/"
+
+# Fullwidth → ASCII replacements (source is Japanese-authored)
+FULLWIDTH_MAP = str.maketrans({
+    "\uff1f": "?", "\uff01": "!", "\uff0c": ",", "\uff0e": ".",
+    "\uff08": "(", "\uff09": ")", "\uff1a": ":", "\uff1b": ";",
+    "\uff10": "0", "\uff11": "1", "\uff12": "2", "\uff13": "3",
+    "\uff14": "4", "\uff15": "5", "\uff16": "6", "\uff17": "7",
+    "\uff18": "8", "\uff19": "9",
+})
+
+
+def normalize_fullwidth(text: str) -> str:
+    """Replace fullwidth Japanese-style punctuation/digits with ASCII equivalents."""
+    return text.translate(FULLWIDTH_MAP)
+
+
+def split_slash_alternatives(tvl: str, en: str) -> list[tuple[str, str]]:
+    """Split slash-separated alternatives into individual pairs.
+
+    Only splits when both sides have the same number of slash-separated parts.
+    Returns list of (tvl, en) tuples.
+    """
+    # Don't split if slash is part of a word (no spaces around it)
+    # Only split on " / " (space-delimited) for expressions
+    if " / " in tvl and " / " in en:
+        tvl_parts = [p.strip() for p in tvl.split(" / ")]
+        en_parts = [p.strip() for p in en.split(" / ")]
+        if len(tvl_parts) == len(en_parts) and len(tvl_parts) > 1:
+            return list(zip(tvl_parts, en_parts))
+
+    # For single words with "/" (no spaces), split only if counts match
+    if "/" in tvl and "/" in en and " " not in tvl and " " not in en:
+        tvl_parts = [p.strip() for p in tvl.split("/")]
+        en_parts = [p.strip() for p in en.split("/")]
+        if len(tvl_parts) == len(en_parts) and len(tvl_parts) > 1:
+            return list(zip(tvl_parts, en_parts))
+
+    return [(tvl, en)]
+
+
+def normalize_glottal_stop(text: str) -> str:
+    """Normalize ASCII apostrophe to reversed prime (U+2035) for Tuvaluan glottal stop.
+
+    The corpus (bible, articles) uses ‵ (U+2035), but this source uses ' (U+0027).
+    """
+    return text.replace("'", "\u2035")
+
+
+def strip_filler_hyphens(text: str) -> str:
+    """Strip placeholder hyphens from dictionary entries.
+
+    Handles:
+      - "to stop -" → "to stop"
+      - "who -?" → "who?"
+      - "Se a - ?" → "Se a?"
+      - "what -? (singular)" → "what? (singular)"
+      - "Tefea -?/Tehea?" → "Tefea?/Tehea?"  (mid-word slash compounds)
+      - "kaia-?" → "kaia?"
+    """
+    # " -?" or " - ?" with optional trailing content → collapse to "?"
+    text = re.sub(r"\s*-\s*\?", "?", text)
+    # "-?" stuck to word (no space) → just "?"
+    text = re.sub(r"-\?", "?", text)
+    # Trailing " -" (no question mark) → strip
+    text = re.sub(r"\s+-\s*$", "", text)
+    return text.strip()
+
+
+def strip_pedagogical_parens(text: str) -> str:
+    """Remove pedagogical parenthetical commentary from EN text.
+
+    Keeps short grammatical disambiguators like (plural), (weight), (of string).
+    Strips longer explanatory notes like (next to you), (the thing is near...).
+    """
+    def should_strip(match):
+        content = match.group(1).strip()
+        # Keep short grammatical disambiguators
+        keep = {"plural", "singular", "weight", "of string", "people",
+                "future", "past", "formal", "informal"}
+        if content.lower() in keep:
+            return match.group(0)  # keep as-is
+        # Strip if it contains pronouns/articles (sentence-like commentary)
+        if re.search(r"\b(you|he|she|it|the|is|are|was|near|next|ok)\b", content, re.I):
+            return ""
+        return match.group(0)  # keep by default
+
+    return re.sub(r"\s*\(([^)]+)\)", should_strip, text).strip()
+
+
+# Known EN typos in source data
+TYPO_FIXES = {
+    "listner": "listener",
+}
+
+
+def fix_typos(text: str) -> str:
+    """Fix known typos in the source data."""
+    for wrong, right in TYPO_FIXES.items():
+        text = text.replace(wrong, right)
+    return text
+
+
+def clean_text(text: str, is_tvl: bool = False) -> str:
+    """Clean a single text field: normalize fullwidth chars, strip whitespace."""
+    text = normalize_fullwidth(text)
+    text = unicodedata.normalize("NFC", text)
+    if is_tvl:
+        text = normalize_glottal_stop(text)
+    else:
+        text = fix_typos(text)
+        text = strip_pedagogical_parens(text)
+    text = strip_filler_hyphens(text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 def subcategory_to_filename(name: str) -> str:
@@ -102,33 +221,42 @@ def scrape_expressions() -> list[dict]:
         en_exprs = cat.get("expression_e", [])
         jp_exprs = cat.get("expression_j", [])
 
-        for i, (tvl, en) in enumerate(zip(tvl_exprs, en_exprs)):
-            tvl = tvl.strip()
-            en = en.strip()
+        for i, (tvl_raw, en_raw) in enumerate(zip(tvl_exprs, en_exprs)):
+            tvl = clean_text(tvl_raw, is_tvl=True)
+            en = clean_text(en_raw, is_tvl=False)
             if not tvl or not en:
                 continue
 
-            record = {
-                "id": f"tuvalu_app_expr_{cat['name']}_{i}",
-                "tvl": tvl,
-                "en": en,
-                "content_type": "expression",
-                "domain": "dictionary",
-                "alignment_method": "index",
-                "alignment_confidence": 1.0,
-                "source": "tuvalu.aa-ken.jp",
-                "source_url": f"{BASE_URL}/expressions.json",
-                "category": cat_name,
-                "subcategory": cat["name"],
-                "tvl_chars": len(tvl),
-                "en_chars": len(en),
-                "length_ratio": round(len(tvl) / len(en), 3) if len(en) > 0 else 0,
-            }
-            # Include Japanese if available
-            if i < len(jp_exprs):
-                record["ja"] = jp_exprs[i].strip()
-
-            records.append(record)
+            # Split slash-separated alternatives into individual pairs
+            pairs = split_slash_alternatives(tvl, en)
+            for j, (tvl_part, en_part) in enumerate(pairs):
+                if not tvl_part or not en_part:
+                    continue
+                suffix = f"_{j}" if len(pairs) > 1 else ""
+                record = {
+                    "id": f"tuvalu_app_expr_{cat['name']}_{i}{suffix}",
+                    "tvl": tvl_part,
+                    "en": en_part,
+                    "content_type": "expression",
+                    "domain": "dictionary",
+                    "alignment_method": "index",
+                    "alignment_confidence": 1.0,
+                    "doc_id": None,
+                    "source_url_tvl": SOURCE_URL,
+                    "source_url_en": SOURCE_URL,
+                    "book_num": None,
+                    "chapter": None,
+                    "verse": None,
+                    "date": None,
+                    "pub_code": None,
+                    "category": cat_name,
+                    "subcategory": cat["name"],
+                    "tvl_chars": len(tvl_part),
+                    "en_chars": len(en_part),
+                    "length_ratio": round(len(tvl_part) / len(en_part), 3)
+                        if len(en_part) > 0 else 0,
+                }
+                records.append(record)
 
     return records
 
@@ -162,28 +290,43 @@ def scrape_words() -> list[dict]:
 
         words = data.get("words", [])
         for word in words:
-            tvl = word.get("tuvalu", "").strip()
-            en = word.get("english", "").strip()
+            tvl = clean_text(word.get("tuvalu", ""), is_tvl=True)
+            en = clean_text(word.get("english", ""), is_tvl=False)
             if not tvl or not en:
                 continue
 
-            record = {
-                "id": f"tuvalu_app_word_{fname[:-5]}_{word.get('id', 0)}",
-                "tvl": tvl,
-                "en": en,
-                "content_type": "word",
-                "domain": "dictionary",
-                "alignment_method": "index",
-                "alignment_confidence": 1.0,
-                "source": "tuvalu.aa-ken.jp",
-                "source_url": f"{BASE_URL}/{fname}",
-                "category": category,
-                "subcategory": subcategory,
-                "tvl_chars": len(tvl),
-                "en_chars": len(en),
-                "length_ratio": round(len(tvl) / len(en), 3) if len(en) > 0 else 0,
-            }
-            records.append(record)
+            # Split slash-separated alternatives
+            pairs = split_slash_alternatives(tvl, en)
+            for j, (tvl_part, en_part) in enumerate(pairs):
+                if not tvl_part or not en_part:
+                    continue
+                suffix = f"_{j}" if len(pairs) > 1 else ""
+                # Useful Expressions are full phrases, not single words
+                ctype = "expression" if subcategory == "Useful Expressions" else "word"
+                record = {
+                    "id": f"tuvalu_app_word_{fname[:-5]}_{word.get('id', 0)}{suffix}",
+                    "tvl": tvl_part,
+                    "en": en_part,
+                    "content_type": ctype,
+                    "domain": "dictionary",
+                    "alignment_method": "index",
+                    "alignment_confidence": 1.0,
+                    "doc_id": None,
+                    "source_url_tvl": SOURCE_URL,
+                    "source_url_en": SOURCE_URL,
+                    "book_num": None,
+                    "chapter": None,
+                    "verse": None,
+                    "date": None,
+                    "pub_code": None,
+                    "category": category,
+                    "subcategory": subcategory,
+                    "tvl_chars": len(tvl_part),
+                    "en_chars": len(en_part),
+                    "length_ratio": round(len(tvl_part) / len(en_part), 3)
+                        if len(en_part) > 0 else 0,
+                }
+                records.append(record)
 
     return records
 
@@ -213,12 +356,27 @@ def main():
         all_records.extend(word_records)
         print(f"Words: {len(word_records)} pairs")
 
+    # Deduplicate by (tvl.lower(), en.lower()) content
+    seen = set()
+    deduped = []
+    dupes = 0
+    for record in all_records:
+        key = (record["tvl"].lower(), record["en"].lower())
+        if key in seen:
+            dupes += 1
+            continue
+        seen.add(key)
+        deduped.append(record)
+
+    if dupes:
+        print(f"Deduplicated: {dupes} duplicate (tvl, en) pairs removed")
+
     # Write output
     with open(output_file, "w") as f:
-        for record in all_records:
+        for record in deduped:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-    print(f"\nDone! {len(all_records)} total pairs written to {output_file}")
+    print(f"\nDone! {len(deduped)} total pairs written to {output_file}")
 
 
 if __name__ == "__main__":
