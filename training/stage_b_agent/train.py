@@ -147,12 +147,13 @@ def _run_gen_eval(
     """Fire-all-futures gen eval: saves sampler weights, fires all requests, collects."""
     step_name = f"{step:06d}"
 
-    # Save sampler weights for this eval
+    # Save sampler weights for this eval (permanent — these are best-step weights)
     ckpt_paths = save_checkpoint(
         training_client=training_client,
         name=f"gen_eval_{step_name}",
         log_path=log_path,
         kind="sampler",
+        ttl_seconds=None,
     )
     sampler_path = ckpt_paths.get("sampler_path", "")
     logger.info("Saved sampler weights for gen eval: %s", sampler_path)
@@ -501,9 +502,9 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         log_path=log_path,
         kind="both",
         loop_state={"step": total_steps},
-        ttl_seconds=cfg["ttl_seconds"],
+        ttl_seconds=None,  # permanent — final weights must never expire
     )
-    logger.info("Saved final checkpoint to %s", log_path)
+    logger.info("Saved final checkpoint (permanent TTL) to %s", log_path)
 
     tb.close()
 

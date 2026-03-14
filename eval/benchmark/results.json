@@ -1,0 +1,242 @@
+{
+  "tvl": {
+    "translation_en_to_tvl": {
+      "count": 5,
+      "chrf_pp": 71.30406360847412,
+      "bleu": 55.186571706834556,
+      "exact_match": 0.0,
+      "by_direction": {
+        "en_to_tvl": {
+          "count": 5,
+          "chrf_pp": 71.30406360847412,
+          "bleu": 55.186571706834556,
+          "exact_match": 0.0
+        }
+      }
+    },
+    "translation_tvl_to_en": {
+      "count": 5,
+      "chrf_pp": 56.64685338282644,
+      "bleu": 38.042394964733425,
+      "exact_match": 0.0,
+      "by_direction": {
+        "tvl_to_en": {
+          "count": 5,
+          "chrf_pp": 56.64685338282644,
+          "bleu": 38.042394964733425,
+          "exact_match": 0.0
+        }
+      }
+    },
+    "chat_tvl": {
+      "count": 4,
+      "chrf_pp": 26.57616900214737,
+      "bleu": 7.609582307151225,
+      "exact_match": 0.25
+    },
+    "qa_tvl": {
+      "count": 2,
+      "chrf_pp": 37.24675222379798,
+      "bleu": 8.372674969481938,
+      "exact_match": 0.0
+    },
+    "summarization_tvl": {
+      "count": 2,
+      "chrf_pp": 38.23999388109823,
+      "bleu": 6.12292606796333,
+      "exact_match": 0.0
+    }
+  },
+  "gpt-5.4": {
+    "translation_en_to_tvl": {
+      "count": 5,
+      "chrf_pp": 60.012386028836026,
+      "bleu": 33.21248876017937,
+      "exact_match": 0.0,
+      "by_direction": {
+        "en_to_tvl": {
+          "count": 5,
+          "chrf_pp": 60.012386028836026,
+          "bleu": 33.21248876017937,
+          "exact_match": 0.0
+        }
+      }
+    },
+    "translation_tvl_to_en": {
+      "count": 4,
+      "chrf_pp": 58.79061764287917,
+      "bleu": 38.185519711178834,
+      "exact_match": 0.0,
+      "by_direction": {
+        "tvl_to_en": {
+          "count": 4,
+          "chrf_pp": 58.79061764287917,
+          "bleu": 38.185519711178834,
+          "exact_match": 0.0
+        }
+      }
+    },
+    "chat_tvl": {
+      "count": 4,
+      "chrf_pp": 26.814306236128054,
+      "bleu": 2.7620349371990254,
+      "exact_match": 0.0
+    },
+    "qa_tvl": {
+      "count": 2,
+      "chrf_pp": 9.620596540115994,
+      "bleu": 0.48602900425350454,
+      "exact_match": 0.0
+    },
+    "summarization_tvl": {
+      "count": 2,
+      "chrf_pp": 33.801701779294326,
+      "bleu": 1.7923898663331388,
+      "exact_match": 0.0
+    }
+  },
+  "qwen3-30b": {
+    "translation_en_to_tvl": {
+      "count": 4,
+      "chrf_pp": 15.37913975071416,
+      "bleu": 4.2545470202788955,
+      "exact_match": 0.0,
+      "by_direction": {
+        "en_to_tvl": {
+          "count": 4,
+          "chrf_pp": 15.37913975071416,
+          "bleu": 4.2545470202788955,
+          "exact_match": 0.0
+        }
+      }
+    },
+    "translation_tvl_to_en": {
+      "count": 5,
+      "chrf_pp": 16.753829322760367,
+      "bleu": 2.379197914096727,
+      "exact_match": 0.0,
+      "by_direction": {
+        "tvl_to_en": {
+          "count": 5,
+          "chrf_pp": 16.753829322760367,
+          "bleu": 2.379197914096727,
+          "exact_match": 0.0
+        }
+      }
+    },
+    "chat_tvl": {
+      "count": 4,
+      "chrf_pp": 0.36467556971099485,
+      "bleu": 0.0,
+      "exact_match": 0.0
+    },
+    "qa_tvl": {
+      "count": 2,
+      "chrf_pp": 4.7465329931625515,
+      "bleu": 0.132277446741505,
+      "exact_match": 0.0
+    },
+    "summarization_tvl": {
+      "count": 2,
+      "chrf_pp": 0.0,
+      "bleu": 0.0,
+      "exact_match": 0.0
+    }
+  },
+  "claude-sonnet": {
+    "translation_en_to_tvl": {
+      "count": 5,
+      "chrf_pp": 37.437253593128375,
+      "bleu": 8.58062609423468,
+      "exact_match": 0.0,
+      "by_direction": {
+        "en_to_tvl": {
+          "count": 5,
+          "chrf_pp": 37.437253593128375,
+          "bleu": 8.58062609423468,
+          "exact_match": 0.0
+        }
+      }
+    },
+    "translation_tvl_to_en": {
+      "count": 5,
+      "chrf_pp": 48.82049521310035,
+      "bleu": 22.49451805824906,
+      "exact_match": 0.0,
+      "by_direction": {
+        "tvl_to_en": {
+          "count": 5,
+          "chrf_pp": 48.82049521310035,
+          "bleu": 22.49451805824906,
+          "exact_match": 0.0
+        }
+      }
+    },
+    "chat_tvl": {
+      "count": 4,
+      "chrf_pp": 16.6374985461278,
+      "bleu": 0.6471937138852015,
+      "exact_match": 0.0
+    },
+    "qa_tvl": {
+      "count": 2,
+      "chrf_pp": 7.234824544916861,
+      "bleu": 0.18915514371550848,
+      "exact_match": 0.0
+    },
+    "summarization_tvl": {
+      "count": 2,
+      "chrf_pp": 34.95977869889641,
+      "bleu": 5.323296575114138,
+      "exact_match": 0.0
+    }
+  },
+  "gemini-3.1-pro": {
+    "translation_en_to_tvl": {
+      "count": 5,
+      "chrf_pp": 7.416352515204393,
+      "bleu": 0.22604537883186843,
+      "exact_match": 0.0,
+      "by_direction": {
+        "en_to_tvl": {
+          "count": 5,
+          "chrf_pp": 7.416352515204393,
+          "bleu": 0.22604537883186843,
+          "exact_match": 0.0
+        }
+      }
+    },
+    "translation_tvl_to_en": {
+      "count": 5,
+      "chrf_pp": 6.8453619954845255,
+      "bleu": 0.07297504668246342,
+      "exact_match": 0.0,
+      "by_direction": {
+        "tvl_to_en": {
+          "count": 5,
+          "chrf_pp": 6.8453619954845255,
+          "bleu": 0.07297504668246342,
+          "exact_match": 0.0
+        }
+      }
+    },
+    "chat_tvl": {
+      "count": 4,
+      "chrf_pp": 1.2570734993845698,
+      "bleu": 4.155179339284568e-06,
+      "exact_match": 0.0
+    },
+    "qa_tvl": {
+      "count": 2,
+      "chrf_pp": 7.1575398902822736,
+      "bleu": 3.3850931143289333,
+      "exact_match": 0.0
+    },
+    "summarization_tvl": {
+      "count": 2,
+      "chrf_pp": 2.3802600948747275,
+      "bleu": 0.004168178316212716,
+      "exact_match": 0.0
+    }
+  }
+}

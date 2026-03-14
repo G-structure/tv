@@ -32,8 +32,8 @@ from detect_collapse import is_collapsed, collapse_score
 
 # Tinker API config
 TINKER_BASE = "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1"
-TINKER_MODEL = "tinker://a6453cc0-d0d8-5168-996a-c9b9ee3b8582:train:0/sampler_weights/final"
-TINKER_MODEL_ID = "a6453cc0-d0d8-5168-996a-c9b9ee3b8582"
+TINKER_MODEL = "tinker://391bb502-f0c1-509e-bcd5-68bc35c82db2:train:0/sampler_weights/final"
+TINKER_MODEL_ID = "391bb502-f0c1-509e-bcd5-68bc35c82db2"
 
 SYSTEM_PROMPT = (
     "You are a careful translator between Tuvaluan and English. Translate "

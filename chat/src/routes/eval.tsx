@@ -37,10 +37,10 @@ const TASK_LABELS: Record<string, string> = {
 
 const MODEL_LABELS: Record<string, string> = {
   tvl: "TVL Fine-tune",
-  "gpt-4o": "GPT-4o",
-  "claude-sonnet": "Claude Sonnet",
-  "gemini-2.5-flash": "Gemini 2.5 Flash",
-  "llama-4-scout": "Llama 4 Scout",
+  "gpt-5.4": "GPT-5.4",
+  "qwen3-30b": "Qwen3-30B",
+  "claude-sonnet": "Claude Sonnet 4.6",
+  "gemini-3.1-pro": "Gemini 3.1 Pro",
   "google-translate": "Google Translate",
 };
 

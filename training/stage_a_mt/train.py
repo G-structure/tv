@@ -405,9 +405,9 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         log_path=str(log_path),
         kind="both",
         loop_state={"step": total_steps},
-        ttl_seconds=cfg["ttl_seconds"],
+        ttl_seconds=None,  # permanent — final weights must never expire
     )
-    logger.info("Saved final checkpoint under %s", log_path)
+    logger.info("Saved final checkpoint (permanent TTL) under %s", log_path)
 
     if cfg["do_final_val_loss"] and val_dataset is not None and len(val_dataset) > 0:
         logger.info("Computing final validation loss...")

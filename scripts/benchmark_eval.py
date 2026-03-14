@@ -94,10 +94,10 @@ TASK_BUDGET = BUDGET_PRESETS["full"]["tasks"]
 # ---------------------------------------------------------------------------
 
 OPENROUTER_MODELS = {
-    "gpt-4o": "openai/gpt-4o",
-    "claude-sonnet": "anthropic/claude-sonnet-4",
-    "gemini-2.5-flash": "google/gemini-2.5-flash-preview",
-    "llama-4-scout": "meta-llama/llama-4-scout",
+    "gpt-5.4": "openai/gpt-5.4",
+    "qwen3-30b": "qwen/qwen3-30b-a3b-thinking-2507",
+    "claude-sonnet": "anthropic/claude-sonnet-4.6",
+    "gemini-3.1-pro": "google/gemini-3.1-pro-preview",
 }
 
 ALL_MODEL_KEYS = ["tvl"] + list(OPENROUTER_MODELS.keys()) + ["google-translate"]
@@ -218,7 +218,8 @@ def call_openrouter(
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
                 body = json.loads(resp.read().decode())
-            return body["choices"][0]["message"]["content"]
+            msg = body["choices"][0]["message"]
+            return msg.get("content") or msg.get("reasoning_content") or ""
         except urllib.error.HTTPError as e:
             error_body = e.read().decode() if e.fp else ""
             if e.code == 429:
@@ -378,7 +379,7 @@ def run_model_on_slice(
         meta = example.get("metadata", {})
         return {
             "id": example.get("id", ""),
-            "prediction": prediction,
+            "prediction": prediction or "",
             "reference": reference,
             "direction": meta.get("direction", ""),
             "domain": meta.get("domain", ""),
