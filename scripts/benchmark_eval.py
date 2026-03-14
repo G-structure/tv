@@ -59,18 +59,35 @@ log = logging.getLogger(__name__)
 # Token budget & sampling
 # ---------------------------------------------------------------------------
 
-TARGET_TOKENS = 500_000  # 0.5M total token budget per model
 MAX_OUTPUT_TOKENS = 256
 CHARS_PER_TOKEN = 3.5  # rough estimate
 
-# How many examples per task slice (balanced across tasks)
-TASK_BUDGET = {
-    "translation_en_to_tvl": 250,
-    "translation_tvl_to_en": 250,
-    "chat_tvl": 300,
-    "qa_tvl": 150,
-    "summarization_tvl": 50,
+# Preset budgets (selected via --budget flag)
+BUDGET_PRESETS = {
+    "full": {
+        "target_tokens": 500_000,
+        "tasks": {
+            "translation_en_to_tvl": 250,
+            "translation_tvl_to_en": 250,
+            "chat_tvl": 300,
+            "qa_tvl": 150,
+            "summarization_tvl": 50,
+        },
+    },
+    "tiny": {
+        "target_tokens": 10_000,
+        "tasks": {
+            "translation_en_to_tvl": 5,
+            "translation_tvl_to_en": 5,
+            "chat_tvl": 5,
+            "qa_tvl": 3,
+            "summarization_tvl": 2,
+        },
+    },
 }
+
+TARGET_TOKENS = BUDGET_PRESETS["full"]["target_tokens"]
+TASK_BUDGET = BUDGET_PRESETS["full"]["tasks"]
 
 # ---------------------------------------------------------------------------
 # Model registry
@@ -474,6 +491,88 @@ def save_results(results: dict, predictions: dict, output_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# D1 upload
+# ---------------------------------------------------------------------------
+
+ACCOUNT_ID = "8f86f0b518afefff58d515fe2a253b33"
+DATABASE_ID = "7087ac6b-6417-48a4-9c7f-1d108057cd51"
+D1_API_URL = (
+    f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}"
+    f"/d1/database/{DATABASE_ID}/query"
+)
+
+
+def d1_exec(sql: str, params: list, token: str) -> None:
+    """Execute a single SQL statement against D1."""
+    import urllib.request
+
+    payload = json.dumps({"sql": sql, "params": params}).encode()
+    req = urllib.request.Request(
+        D1_API_URL,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        body = json.loads(resp.read().decode())
+    if not body.get("success"):
+        raise RuntimeError(f"D1 error: {body.get('errors')}")
+
+
+def upload_to_d1(
+    run_id: str,
+    budget: str,
+    results: dict[str, dict],
+    predictions: dict[str, dict[str, list[dict]]],
+    token: str,
+) -> None:
+    """Upload benchmark results and predictions to D1."""
+    log.info("Uploading results to D1 (run_id=%s)...", run_id)
+
+    # Upload per-model results
+    for model_key, model_results in results.items():
+        d1_exec(
+            "INSERT INTO eval_runs (run_id, model_key, budget, results_json) VALUES (?, ?, ?, ?)",
+            [run_id, model_key, budget, json.dumps(model_results)],
+            token,
+        )
+
+    # Upload predictions in chunks
+    for model_key, model_preds in predictions.items():
+        for task, preds in model_preds.items():
+            CHUNK = 10
+            for i in range(0, len(preds), CHUNK):
+                chunk = preds[i : i + CHUNK]
+                placeholders = ", ".join(["(?, ?, ?, ?, ?, ?, ?)"] * len(chunk))
+                params = []
+                for p in chunk:
+                    meta = {
+                        k: p.get(k)
+                        for k in ("direction", "domain", "task_family", "stage_b_source")
+                        if p.get(k)
+                    }
+                    params.extend([
+                        run_id,
+                        model_key,
+                        task,
+                        p.get("id", ""),
+                        p.get("prediction", ""),
+                        p.get("reference", ""),
+                        json.dumps(meta),
+                    ])
+                d1_exec(
+                    f"INSERT INTO eval_predictions (run_id, model_key, task, example_id, prediction, reference, metadata_json) VALUES {placeholders}",
+                    params,
+                    token,
+                )
+
+    log.info("Uploaded to D1: %d models, run %s", len(results), run_id)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -494,7 +593,16 @@ def main() -> None:
         help=f"Comma-separated model keys. Available: {','.join(ALL_MODEL_KEYS)}",
     )
     parser.add_argument("--our-model-only", action="store_true", help="Only evaluate TVL model")
+    parser.add_argument(
+        "--budget",
+        type=str,
+        default="full",
+        choices=list(BUDGET_PRESETS.keys()),
+        help="Token budget preset: full (~500K) or tiny (~10K)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Show token budget, no API calls")
+    parser.add_argument("--upload", action="store_true", help="Upload results to D1 database")
+    parser.add_argument("--cf-token", type=str, default=os.environ.get("CLOUDFLARE_API_TOKEN"))
     parser.add_argument("--parallel", type=int, default=8, help="Concurrent requests per model")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
     parser.add_argument(
@@ -505,6 +613,12 @@ def main() -> None:
     args = parser.parse_args()
 
     random.seed(args.seed)
+
+    # Apply budget preset
+    global TARGET_TOKENS, TASK_BUDGET
+    preset = BUDGET_PRESETS[args.budget]
+    TARGET_TOKENS = preset["target_tokens"]
+    TASK_BUDGET = preset["tasks"]
 
     # Determine which models to run
     if args.our_model_only:
@@ -593,6 +707,16 @@ def main() -> None:
     # Print and save
     print_results_table(all_results)
     save_results(all_results, all_predictions, Path(args.output_dir))
+
+    # Upload to D1
+    if args.upload:
+        if not args.cf_token:
+            log.error("Set CLOUDFLARE_API_TOKEN or --cf-token for D1 upload")
+        else:
+            from datetime import datetime
+
+            run_id = f"{datetime.utcnow().strftime('%Y-%m-%d_%H%M')}_{args.budget}"
+            upload_to_d1(run_id, args.budget, all_results, all_predictions, args.cf_token)
 
 
 if __name__ == "__main__":
