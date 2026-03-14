@@ -1,4 +1,5 @@
 import { createResource, createSignal, Show } from "solid-js";
+import { isServer } from "solid-js/web";
 
 interface ModelInfo {
   sampler_path: string;
@@ -10,7 +11,8 @@ interface ModelInfo {
   latest_val_nll: number | null;
 }
 
-async function fetchModelInfo(): Promise<ModelInfo> {
+async function fetchModelInfo(): Promise<ModelInfo | undefined> {
+  if (isServer) return undefined;
   const resp = await fetch("/api/model-info");
   if (!resp.ok) throw new Error("Backend unavailable");
   return resp.json();

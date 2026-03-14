@@ -1,4 +1,5 @@
 import { createResource, For, Show, createMemo } from "solid-js";
+import { isServer } from "solid-js/web";
 import { Title } from "@solidjs/meta";
 
 interface TrainingStats {
@@ -13,7 +14,8 @@ interface TrainingStats {
   sampler_step: string;
 }
 
-async function fetchStats(): Promise<TrainingStats> {
+async function fetchStats(): Promise<TrainingStats | undefined> {
+  if (isServer) return undefined;
   const resp = await fetch("/api/training-stats");
   if (!resp.ok) throw new Error("Failed to fetch");
   return resp.json();
