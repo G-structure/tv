@@ -1,6 +1,7 @@
 # scripts/
 
 All scripts in the tv2en project. Run everything with `uv run` unless noted otherwise.
+The intended design is that `scripts/` contains CLI entrypoints while reusable logic lives under `tv/`.
 
 ## Quick Reference
 
@@ -355,27 +356,13 @@ uv run scripts/sync_to_d1.py --dry-run  # preview SQL without executing
 
 ---
 
-## Migrations (one-time)
+## Removed Legacy Scripts
 
-### `migrate_collapse_detection.py`
-Adds collapse detection columns and `translation_attempts` table to `football.db`, backfills existing translations.
-
-### `migrate_unescape_entities.py`
-Unescapes HTML entities (`&#x27;`, `&amp;`, etc.) in article titles, bodies, and translations.
-
-Both are idempotent and safe to re-run.
-
----
-
-## Deprecated
-
-These are old wrappers kept for backward compatibility. Use the replacements instead.
-
-| Deprecated | Replacement |
-|---|---|
-| `build_tinker_mt_data.py` | `build_stage_a_mt_data.py` |
-| `train_tinker_mt.py` | `train_stage_a_translation.py` |
-| `eval_tinker_mt.py` | `eval_stage_a_translation.py` |
+The repo no longer keeps one-off migration scripts, deprecated Stage A wrappers,
+or historical Samoan scraper copies under `scripts/`. Recreate local football
+databases with `init_football_db.py`, and use the current canonical Stage A
+entrypoints (`build_stage_a_mt_data.py`, `train_stage_a_translation.py`,
+`eval_stage_a_translation.py`) directly.
 
 ---
 

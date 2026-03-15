@@ -16,7 +16,7 @@
   - Strategic scaffold, split guidance, and dataset quality rationale.
 - `docs/SELECTIVE_TRANSLATION_SPEC.md`
   - Structure preservation rules used for synthetic translation.
-- `scripts/` + `training/`
+- `scripts/` + `tv/`
   - Source of truth for exact schema, filters, and transforms.
 - `scripts/run_unstructured_datamining.py`
   - Reusable one-command pipeline for unstructured asset mining.
@@ -132,13 +132,13 @@ Split policy:
 ## Stage B source/synthetic/mix contracts
 
 ### Stage B source layer (`scripts/build_stage_b_sources.py`)
-- Uses registered dataset loaders (`training/synthetic/loaders.py`).
+- Uses registered dataset loaders (`tv/training/synthetic/loaders.py`).
 - Each source example is normalized to common schema (`id`, `task_family`, `messages`, `metadata`, optional `translate_mask`).
 - `stage_b_sources` manifest includes budget use, dataset stats, and completed datasets.
 
 ### Stage B synthetic TVL (`scripts/generate_stage_b_synthetic_tvl.py`)
 - Uses Stage A translation with selective mask+unmask.
-- Preserves placeholders/JSON/code/tool/message structure with explicit checks in `training/synthetic/quality.py`.
+- Preserves placeholders/JSON/code/tool/message structure with explicit checks in `tv/training/synthetic/quality.py`.
 - Writes `accepted`/`rejected` JSONL with reason logs.
 
 ### Stage B mix (`scripts/build_stage_b_mix.py`)

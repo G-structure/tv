@@ -19,36 +19,28 @@ works but articles will only have English text.
 ## Project structure
 
 ```
+scripts/
+  init_football_db.py             # creates SQLite/D1 schema
+  scrape_football_goal.py         # Goal.com scraper
+  scrape_football_fifa.py         # FIFA.com scraper
+  scrape_football_sky.py          # Sky Sports scraper
+  translate_football.py           # Tuvaluan translation via Tinker API
+  pipeline_football.py            # scrape + translate pipeline
+  export_football_interactions.py # JSONL export for feedback/poll data
 tv/
-  scripts/
-    init_football_db.py           # creates SQLite DB + schema
-    scrape_football_goal.py       # Goal.com scraper (sitemap + __NEXT_DATA__)
-    scrape_football_fifa.py       # FIFA.com scraper (CXM API, 2-step fetch)
-    scrape_football_sky.py        # Sky Sports scraper (sitemap + JSON-LD)
-    translate_football.py         # Tuvaluan translation via Tinker API
-    pipeline_football.py          # one-command scrape + translate pipeline
-  data/
-    football/
-      football.db                 # SQLite database (created by init script)
-  site/                           # SolidStart app
-    src/
-      routes/
-        index.tsx                 # homepage — latest articles feed
-        articles/[id].tsx         # article page — bilingual paragraphs
-        category/[slug].tsx       # category listing
-      components/
-        ArticleCard.tsx           # card for article listings (hero + thumbnail)
-        CategoryPills.tsx         # horizontal scroll category filter
-        Header.tsx                # site header with optional language toggle
-        LanguageToggle.tsx        # TV / EN / TV+EN mode switcher
-        OGMeta.tsx                # OpenGraph + Twitter Card meta tags
-      lib/
-        db.ts                     # SQLite reader (better-sqlite3)
-        types.ts                  # TypeScript interfaces
-        time.ts                   # time formatting helpers
-  docs/
-    football_site_plan.md         # full architecture + extraction recipes
-    football_news.md              # source evaluation notes
+  apps/
+    football/                     # shared football app/repository/export logic
+site/
+  src/
+    routes/                       # SolidStart routes
+    components/                   # football UI components
+    lib/                          # site-side DB/types helpers
+data/
+  football/
+    football.db                   # local SQLite database
+docs/
+  FOOTBALL_SETUP.md               # local setup guide
+  football_site_plan.md           # architecture + extraction notes
 ```
 
 ## Quick start
@@ -140,6 +132,32 @@ uv run python scripts/pipeline_football.py --translate-only
 uv run python scripts/pipeline_football.py --scrape-only
 ```
 
+### 5b. Export interaction data for future RL / preference tuning
+
+```bash
+# Export from the default local football DB
+uv run python scripts/export_football_interactions.py
+
+# Write to a custom directory
+uv run python scripts/export_football_interactions.py \
+  --output-dir data/football/exports/demo_run
+
+# Skip implicit reveal/share signals and keep only explicit feedback
+uv run python scripts/export_football_interactions.py --skip-implicit
+```
+
+The export writes:
+
+- `explicit_feedback.jsonl` — paragraph votes and richer article-level feedback
+- `corrections.jsonl` — free-text Tuvaluan correction suggestions with article context
+- `implicit_signals.jsonl` — reveal/share-style engagement events
+- `football_polls.jsonl` — poll or prediction votes when those tables exist
+- `manifest.json` — file paths and row counts
+
+By default the artifacts land in `data/football/exports/interactions/`.
+If Cloudflare D1 env vars are set, the exporter uses the same env-based backend
+selection as the football scripts; otherwise it reads the local SQLite DB.
+
 ### 6. Install site dependencies
 
 ```bash
@@ -160,6 +178,10 @@ The site reads directly from `data/football/football.db` (one directory up from
 `site/`). No separate API server needed. Changes to the database (new scrapes,
 new translations) appear on the next page load.
 
+For the current Cloudflare-backed app flow, use `scripts/sync_to_d1.py` after
+scraping/translating so the site and the interaction export operate on the same
+data store.
+
 ## Site features
 
 ### Bilingual experience
@@ -177,11 +199,16 @@ new translations) appear on the next page load.
 ### Pages
 
 - **Homepage** (`/`): Hero card for latest article + thumbnail list, category
-  filter pills, "Faitau atu" (read more) load button
+  filter pills, and a `Te Fatele` call-to-action that points users to the
+  coaching loop
 - **Article page** (`/articles/[id]`): Hero image, bilingual title, paragraph-by-
-  paragraph body with language toggle, "Fakasoa" (share) button, source attribution
+  paragraph body with language toggle, paragraph thumbs feedback, a `Coach the
+  Translator` form for explicit article-level feedback / preferred mode /
+  correction text, `Fakasoa` (share) button, and source attribution
 - **Category page** (`/category/[slug]`): Same layout filtered by category
   (premier-league, world-cup, transfers, champions-league, etc.)
+- **Fatele** (`/fatele`): Community dashboard with monthly signals, island
+  participation, mode-preference counts, and correction totals
 
 ### Mobile-first design
 
@@ -300,8 +327,17 @@ npm run start
 ```bash
 uv run python scripts/init_football_db.py
 uv run python scripts/pipeline_football.py --scrape-limit 10 --translate-limit 10
+uv run python scripts/sync_to_d1.py
 cd site && npm install && npm run dev
 ```
+
+Then:
+
+1. Open any translated article.
+2. Submit the `Coach the Translator` form.
+3. Open `/fatele` to confirm the signal shows up in the community totals.
+4. Run `uv run python scripts/export_football_interactions.py` to generate the
+   normalized JSONL export.
 
 ### Full scrape (all sources)
 
@@ -319,8 +355,9 @@ For a quick demo, use `--limit 50` on each scraper and translator.
 ## What's next (not yet built)
 
 - **Cron automation**: Periodic scraping + translation via API routes or workers.
-- **Gamified RL**: Community feedback on translation quality (tap-to-flag, A/B
-  preferences, name corrections). See the "Te Fatele" section in the site plan.
+- **Richer gamified RL**: today the app captures paragraph votes, article-level
+  coaching submissions, preferred reading mode, and correction text. Future work
+  can add deeper A/B ranking, reviewer workflows, and direct post-training loops.
 - **Island selector**: First-visit island picker for community contribution tracking.
 - **Service Worker**: Cache last 20 articles for offline reading on outer islands.
 - **Deployment**: Cloudflare Pages with Turso (edge SQLite) for production.

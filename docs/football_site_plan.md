@@ -1434,7 +1434,7 @@ const CATEGORIES: Record<string, string[]> = {
 - [x] All translation attempts saved to `translation_attempts` table for RL training
 - [x] Model ID (`a6453cc0`) tracked on every translation
 - [x] `db.ts`: CASE WHEN hides collapsed translations (site shows English-only)
-- [x] `migrate_collapse_detection.py`: retroactive scan — 41/56 flagged, 0 false positives
+- [x] Retroactive collapse backfill run during development — 41/56 flagged, 0 false positives
 - [x] Root cause analysis documented in `todo.md` #10
 - [x] `--retry-collapsed` CLI flag to retry previously flagged translations
 

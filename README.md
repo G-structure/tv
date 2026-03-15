@@ -1,6 +1,6 @@
-# tv2en — Tuvaluan-English Parallel Corpus & Translation System
+# tv2en — Tuvaluan-English LLM, Corpus, and Football Product Loop
 
-A complete pipeline for building a Tuvaluan↔English parallel corpus, training a neural translation model, and serving translated content — from raw web scraping through LoRA fine-tuning to a live bilingual football news site.
+A complete pipeline for building a Tuvaluan↔English parallel corpus, training specialized Tuvaluan models, and shipping a live bilingual football product that turns real usage into future language data.
 
 Tuvaluan (ISO 639-3: `tvl`) is a Polynesian language with ~11,000 speakers. Existing NLP resources are extremely limited. This project creates the largest known Tuvaluan-English parallel dataset and uses it to train a translation model that powers [talafutipolo.pages.dev](https://talafutipolo.pages.dev) — a Tuvaluan-language football news reader.
 
@@ -15,33 +15,25 @@ Tuvaluan (ISO 639-3: `tvl`) is a Polynesian language with ~11,000 speakers. Exis
 | **Translation model** | Qwen3-30B-A3B LoRA via Tinker API (Stage A) | Trained — chrF++ 64.5, BLEU 46.7 |
 | **Football site** | SolidStart + Cloudflare Pages/D1, 3 news sources | Live at [talafutipolo.pages.dev](https://talafutipolo.pages.dev) |
 | **CI pipeline** | Auto-scrape football news every 6h, translate, deploy | Running |
+| **Interaction export** | Normalized JSONL for feedback / corrections / polls | `scripts/export_football_interactions.py` |
 
 ---
 
 ## Repository Structure
 
-```
+```text
+scripts/                      # Thin CLI entrypoints and orchestration
 tv/
-├── scripts/                  # All pipeline scripts (see scripts/README.md)
-├── training/                 # Python training modules
-│   ├── common/               #   Shared infra (config, metrics, manifests, Tinker runtime)
-│   ├── stage_a_mt/           #   Stage A: translation LoRA (build, train, eval, export)
-│   ├── stage_b_agent/        #   Stage B: bilingual capability adapter
-│   └── synthetic/            #   Synthetic data generation (selective translation)
-├── site/                     # SolidStart football news site
-│   └── src/routes/           #   Pages: home, article, category, search, fatele, feed
-├── configs/                  # Training/eval JSON configs
-├── tests/                    # Unit tests (splits, quality, schemas, selective translate)
-├── data/
-│   ├── aligned/              # Raw scraped pairs (IMMUTABLE)
-│   ├── cleaned/              # After dedup + quality filtering
-│   ├── splits/               # Decontaminated train/val/test
-│   ├── finetune/             # Rendered chat JSONL for Tinker
-│   ├── external/             # Unstructured seed (dictionary, Tatoeba)
-│   └── football/             # Football article DB
-├── docs/                     # Detailed documentation
-├── vendor/                   # Git submodules (tinker-cookbook)
-└── .github/workflows/        # CI: site deploy + football pipeline
+  common/                     # Shared config/IO/metrics/CLI helpers
+  corpus/                     # Corpus cleaning, splits, rendering
+  training/                   # Canonical training/eval/synthetic modules
+site/                         # SolidStart football site
+configs/                      # Training/eval JSON configs
+tests/                        # Repo-local unit/smoke tests
+data/                         # Corpus, splits, finetune data, football DB
+docs/                         # Pipeline, training, scraping, and product docs
+vendor/                       # Submodules and third-party code
+.github/workflows/            # Deploy + football pipeline automation
 ```
 
 ---
@@ -173,10 +165,10 @@ A bilingual Tuvaluan football news reader at [talafutipolo.pages.dev](https://ta
 | Page | Description |
 |---|---|
 | **Home** (`/`) | Paginated article list with category filter and hero card |
-| **Article** (`/articles/:id`) | Bilingual paragraph display with language toggle (TV / TV+EN / EN) |
+| **Article** (`/articles/:id`) | Bilingual paragraph display with language toggle (TV / TV+EN / EN) plus a coaching form for explicit feedback, mode preference, and correction notes |
 | **Category** (`/category/:slug`) | Filtered article list |
 | **Search** (`/search`) | Full-text article search |
-| **Fatele** (`/fatele`) | Community dashboard — feedback counts by Tuvaluan island |
+| **Fatele** (`/fatele`) | Community dashboard — monthly signals, coaching submissions, correction counts, and island participation |
 | **RSS** (`/feed.xml`) | RSS feed (20 latest articles) |
 
 ### CI Pipeline
@@ -238,6 +230,44 @@ uv run scripts/eval_stage_a_translation.py --config configs/stage_a_translation_
 ```bash
 uv run scripts/pipeline_football.py                # scrape + translate
 uv run scripts/sync_to_d1.py                       # push to Cloudflare D1
+```
+
+### Export football interactions
+
+```bash
+uv run python scripts/export_football_interactions.py
+uv run python scripts/export_football_interactions.py --output-dir data/football/exports/demo_run
+```
+
+This writes normalized JSONL artifacts plus a manifest under
+`data/football/exports/interactions/` by default. If Cloudflare D1 env vars are
+set, the exporter uses the same env-based backend selection as the football
+scripts; otherwise it reads the local SQLite DB at `data/football/football.db`.
+
+### Demo the gamified loop locally
+
+1. Run the football pipeline and sync it to D1:
+
+```bash
+uv run python scripts/pipeline_football.py --scrape-limit 10 --translate-limit 10
+uv run python scripts/sync_to_d1.py
+```
+
+2. Start the site:
+
+```bash
+cd site && npm install && npm run dev
+```
+
+3. In the app:
+- open any translated article
+- fill out the `Coach the Translator` card
+- visit `/fatele` to see the contribution reflected in the community dashboard
+
+4. Export the collected interactions:
+
+```bash
+uv run python scripts/export_football_interactions.py
 ```
 
 ### Run the site locally

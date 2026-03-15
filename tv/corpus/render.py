@@ -3,7 +3,7 @@
 
 Reads raw pair data from data/splits/ (output of build_splits.py) and renders
 each pair into both translation directions using the same chat format as
-training/stage_a_mt/build_data.py.
+tv/training/stage_a_mt/build_data.py.
 
 Optionally merges unstructured seed data (already in chat format from
 build_stage_a_mt_data.py) into the training set.

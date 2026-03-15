@@ -15,7 +15,7 @@ outputs produced by:
 - [`docs/SELECTIVE_TRANSLATION_SPEC.md`](SELECTIVE_TRANSLATION_SPEC.md): preservation guarantees for synthetic translation.
 - [`docs/TRAINING_PIPELINE.md`](TRAINING_PIPELINE.md): end-to-end stage execution and config inventory.
 - [`docs/DATASET_COLLECTION_AND_ML_PIPELINE.md`](DATASET_COLLECTION_AND_ML_PIPELINE.md): consolidated field schema + alignment + split contracts.
-- [`scripts/...` / `training/...`](../scripts): executable source-of-truth for schema and transformation details.
+- [`scripts/...` / `tv/...`](../scripts): executable source-of-truth for schema and transformation details.
 
 ## What to optimize first
 

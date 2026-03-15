@@ -19,6 +19,7 @@ SCRIPTS = [
     "scripts/build_stage_b_mix.py",
     "scripts/train_stage_b_agent.py",
     "scripts/eval_stage_b_agent.py",
+    "scripts/export_football_interactions.py",
 ]
 
 
@@ -92,14 +93,13 @@ def test_export_stage_a_help():
     assert result.returncode == 0, result.stderr
 
 
-def test_prepare_local_mlx_help():
-    result = _run_help("scripts/prepare_local_mlx_training.py")
+def test_export_football_interactions_help():
+    result = _run_help("scripts/export_football_interactions.py")
     assert result.returncode == 0, result.stderr
 
 
-def test_deprecated_build_help():
-    """Old deprecated script should still work."""
-    result = _run_help("scripts/build_tinker_mt_data.py")
+def test_prepare_local_mlx_help():
+    result = _run_help("scripts/prepare_local_mlx_training.py")
     assert result.returncode == 0, result.stderr
 
 

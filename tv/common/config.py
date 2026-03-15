@@ -42,7 +42,7 @@ def resolve_path(path_str: str, base_dir: Path | None = None) -> Path:
 
 
 def get_repo_root() -> Path:
-    """Return the repository root (parent of training/)."""
+    """Return the repository root."""
     return Path(__file__).resolve().parent.parent.parent
 
 

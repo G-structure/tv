@@ -1,10 +1,22 @@
 # Codebase Organization Plan
 
+## Status Update
+
+This document was written before the package migration. Current repo status:
+
+- canonical reusable code now lives under `tv/`
+- `tv.common` is the shared utility layer
+- `tv.corpus` owns the current corpus cleaning/split/render pipeline
+- `tv.training` owns the current training/synthetic/eval modules
+- the top-level `training/` package has been removed
+
+Read this document as architectural rationale and remaining roadmap, not as an exact description of the live tree.
+
 ## Executive Summary
 
-The repo already has one good organizational seam: `training/` is a real Python package with reusable code and tests. The main problem is that most non-training business logic still lives in `scripts/`, so the repo currently has:
+The repo already has one good organizational seam: `tv/` is now a real Python package with reusable code and tests. The main problem is that most non-training business logic still lives in `scripts/`, so the repo currently has:
 
-- reusable library code in `training/`
+- reusable library code in `tv/`
 - large operational pipelines in `scripts/`
 - duplicated config flattening, IO helpers, data normalization, scraper logic, translation client logic, and eval flows
 
@@ -28,13 +40,10 @@ This should be done incrementally, with legacy scripts preserved as wrappers unt
 Examples:
 
 - `scripts/scrape_sitemap.py`
-- `scripts/scrape_sitemap_sm.py`
 - `scripts/scrape_bible.py`
-- `scripts/scrape_bible_sm.py`
 - `scripts/scrape_daily_text.py`
-- `scripts/scrape_daily_text_sm.py`
 - `scripts/scrape_articles.py`
-- `scripts/scrape_articles_sm.py`
+- historically, equivalent Samoan scraper variants lived alongside these instead of being parameterized
 
 Most of the logic is the same. The differences are mostly:
 
@@ -76,7 +85,6 @@ Examples:
 - `scripts/build_stage_b_mix.py`
 - `scripts/train_stage_b_agent.py`
 - `scripts/eval_stage_b_agent.py`
-- deprecated wrappers under `scripts/*tinker*`
 
 These all do variations of:
 
@@ -93,7 +101,7 @@ Examples:
 - `training/synthetic/generate.py`
 - `scripts/translate_football.py`
 - `scripts/benchmark_eval.py`
-- `scripts/test_stage_b_live.py`
+- ad hoc live-test helpers that bypass the canonical eval/training surfaces
 
 These currently duplicate:
 
@@ -130,9 +138,7 @@ Examples:
 - `scripts/build_unstructured_seed.py`
 - `scripts/run_unstructured_datamining.py`
 - `scripts/ocr_scanned_pdfs.py`
-- `scripts/extract_bilingual_pdfs.py`
-- `scripts/extract_grammar_pairs.py`
-- `scripts/extract_species_names.py`
+- extractor helpers imported by `ingest_new_unstruct.py`
 
 This area already has "old path" and "new path" behavior in parallel. It should become one package with extractors, OCR helpers, and a reproducible pipeline runner.
 

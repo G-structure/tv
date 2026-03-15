@@ -216,35 +216,41 @@ data/finetune/stage_b_mix/
 
 ## Package Structure
 
-```
-training/
-    common/
-        config.py           # Config loading/validation
-        io.py               # JSONL I/O, run directories
-        schema.py           # Normalized example schema
-        token_estimates.py  # Token counting
-        tinker_runtime.py   # Tinker client setup
-        checkpoints.py      # Checkpoint save/resume
-        manifests.py        # Run manifest generation
-        metrics.py          # chrF++, BLEU, exact match
+```text
+tv/
+  common/
+    config.py
+    io.py
+    schema.py
+    token_estimates.py
+    tinker_runtime.py
+    checkpoints.py
+    manifests.py
+    metrics.py
+    cli.py
+  corpus/
+    clean.py
+    splits.py
+    render.py
+  training/
     stage_a_mt/
-        build_data.py       # Build MT dataset from aligned JSONL
-        train.py            # Stage A LoRA training
-        eval.py             # Translation evaluation
-        export.py           # Export checkpoint for synthetic phase
+      build_data.py
+      train.py
+      eval.py
+      export.py
     synthetic/
-        registry.py         # Dataset registry pattern
-        loaders.py          # HuggingFace dataset loaders
-        normalize.py        # Normalize to common schema
-        selective_translate.py  # Mask-translate-unmask engine
-        quality.py          # Validation pipeline
-        generate.py         # Synthetic generation runner
-        budgeting.py        # Token budget management
+      registry.py
+      loaders.py
+      normalize.py
+      selective_translate.py
+      quality.py
+      generate.py
+      budgeting.py
     stage_b_agent/
-        build_mix.py        # Mix builder (EN + TVL + anchor)
-        train.py            # Stage B LoRA training
-        eval.py             # Multi-faceted evaluation
-        tooling_modes.py    # Safe vs native tool format
+      build_mix.py
+      train.py
+      eval.py
+      tooling_modes.py
 ```
 
 ## Dependencies
@@ -379,7 +385,7 @@ tensorboard --logdir logs/tinker/stage_b/tb
 tensorboard --logdir logs/tinker
 ```
 
-The TBLogger (`training/common/tb.py`) writes scalars alongside the existing
+The TBLogger (`tv/common/tb.py`) writes scalars alongside the existing
 JSONL metrics files. It uses TensorBoard's `EventFileWriter` directly (no
 PyTorch dependency required). Periodic validation metrics are also logged when
 the training loop runs mid-training evaluation.
