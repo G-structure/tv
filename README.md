@@ -8,7 +8,7 @@ Tuvaluan (ISO 639-3: `tvl`) has roughly 11,000 speakers and almost no modern NLP
 
 - We built the largest Tuvaluan-English corpus we know of: `342,505` raw aligned pairs and `377,122` rendered training examples.
 - We fine-tuned a Tuvaluan translation model on Thinking Machines' Tinker stack using `Qwen3-30B-A3B-Base`, a `30B` total / `3B` active MoE model.
-- We shipped a live Tuvaluan-first football news app at [talafutipolo.pages.dev](https://talafutipolo.pages.dev).
+- We shipped a live Tuvaluan-first football news app at [tuvalugpt.tv](https://tuvalugpt.tv).
 - The app collects explicit feedback, correction text, mode preferences, and implicit engagement signals, then exports them as normalized JSONL for future post-training.
 - On the current shared Tuvaluan benchmark subset with `28` overlapping examples, the Stage B model scores `chrF++ 41.8` versus `GPT-5.4` at `36.1` overall and leads on `6/7` task slices by chrF++.
 
