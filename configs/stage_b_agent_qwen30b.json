@@ -15,7 +15,7 @@
     "save_every": 200,
     "seed": 17,
     "train_on_what": "ALL_ASSISTANT_MESSAGES",
-    "ttl_seconds": 604800,
+    "ttl_seconds": null,
     "ablation_mode": "mixed",
     "included_task_families": ["chat", "tool", "math", "code", "qa", "summarization", "translation"],
     "tool_mode": "safe"
