@@ -1,4 +1,4 @@
-import { createResource, For, Show, createMemo, createSignal, onMount } from "solid-js";
+import { createResource, For, Show, createMemo, createSignal } from "solid-js";
 import { isServer } from "solid-js/web";
 import { Title } from "@solidjs/meta";
 
@@ -107,8 +107,7 @@ function TableHeader() {
 }
 
 export default function Eval() {
-  const [data, { refetch }] = createResource(fetchEvalData);
-  onMount(() => refetch());
+  const [data] = createResource(fetchEvalData);
   const [selectedRun, setSelectedRun] = createSignal<string | null>(null);
 
   const latestRun = createMemo(() => {

@@ -1,4 +1,4 @@
-import { createResource, For, Show, createMemo } from "solid-js";
+import { createResource, For, Show, createMemo, onCleanup } from "solid-js";
 import { isServer } from "solid-js/web";
 import { Title } from "@solidjs/meta";
 
@@ -22,8 +22,15 @@ async function fetchStats(): Promise<TrainingStats | undefined> {
 }
 
 export default function Training() {
-  const [stats, { refetch }] = createResource(fetchStats);
-  setInterval(() => refetch(), 15000);
+  const [stats, { refetch, mutate }] = createResource(fetchStats);
+  // Poll without flashing: refetch in background, only update when new data arrives
+  const timer = setInterval(async () => {
+    try {
+      const next = await fetchStats();
+      if (next) mutate(next);
+    } catch { /* keep stale data visible */ }
+  }, 15000);
+  onCleanup(() => clearInterval(timer));
 
   const latestRunMetrics = createMemo(() => {
     if (!stats()) return [];

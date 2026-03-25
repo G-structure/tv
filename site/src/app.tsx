@@ -21,18 +21,12 @@ function Shell(props: { children: any }) {
       <Show
         when={!isChatRoute()}
         fallback={
-          <Suspense>{props.children}</Suspense>
+          <Suspense fallback={<div class="chat-theme min-h-screen" />}>{props.children}</Suspense>
         }
       >
         <div class="min-h-screen pb-12">
           <Header />
-          <Suspense
-            fallback={
-              <div class="max-w-3xl mx-auto p-4 text-center text-gray-400">
-                Loading...
-              </div>
-            }
-          >
+          <Suspense>
             {props.children}
           </Suspense>
           <FateleTeaser />
