@@ -62,13 +62,20 @@ class ChatState:
     def init(self):
         self.renderer, self.sampling_client = init_tinker()
 
-    def sample(self, messages: list[dict], temperature: float = 0.3, max_tokens: int = 1024) -> str:
+    def sample(
+        self,
+        messages: list[dict],
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
+        top_p: float = 0.9,
+    ) -> str:
         import tinker
 
         with self.lock:
             params = tinker.SamplingParams(
                 max_tokens=max_tokens,
                 temperature=temperature,
+                top_p=top_p,
                 stop=self.renderer.get_stop_sequences(),
             )
             prompt = self.renderer.build_generation_prompt(messages)
@@ -119,8 +126,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             content = state.sample(
                 [{"role": m["role"], "content": m["content"]} for m in messages],
-                temperature=body.get("temperature", 0.3),
+                temperature=body.get("temperature", 0.7),
                 max_tokens=body.get("max_tokens", 1024),
+                top_p=body.get("top_p", 0.9),
             )
             self._respond(200, {
                 "content": content,
