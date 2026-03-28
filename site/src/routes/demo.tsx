@@ -1,5 +1,5 @@
 import { A } from "@solidjs/router";
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import OGMeta from "~/components/OGMeta";
 
 // ─── Data ───
@@ -49,41 +49,47 @@ const exploreLinks = [
 
 const gallery = [
   {
-    src: "/judges/nick-football-community.jpg",
+    src: "/judges/nick-football-community.webp",
     alt: "Nick Miller standing with two local football community members in matching shirts.",
     title: "Built with the community, not for them.",
     tall: false,
   },
   {
-    src: "/judges/rainbow-ocean.jpg",
+    src: "/judges/rainbow-ocean.webp",
     alt: "Rainbow over the ocean in Tuvalu.",
     title: "11,000 speakers. One mission.",
     tall: false,
   },
   {
-    src: "/judges/nick-coconut-crab.jpg",
+    src: "/judges/nick-coconut-crab.webp",
     alt: "Nick Miller holding a coconut crab in Tuvalu.",
     title: "Ground truth comes from the ground.",
     tall: true,
   },
   {
-    src: "/judges/island-lagoon.jpg",
+    src: "/judges/island-lagoon.webp",
     alt: "Small tropical island surrounded by clear lagoon water in Tuvalu.",
     title: "Every language deserves sovereign AI.",
     tall: false,
   },
   {
-    src: "/judges/beach-tree.jpg",
+    src: "/judges/beach-tree.webp",
     alt: "Beach scene with a leaning tree and shallow turquoise water in Tuvalu.",
     title: "Efficiency over scale.",
     tall: true,
   },
   {
-    src: "/judges/futsal-article.jpg",
+    src: "/judges/futsal-article.webp",
     alt: "Magazine article about Tuvalu futsal as a springboard.",
     title: "Products collect data. Data improves models.",
     tall: true,
   },
+];
+
+const reviews = [
+  { src: "/reviews/review-1.webp", alt: "Tuvaluan reviewer says 'Very good excellent' after testing the model" },
+  { src: "/reviews/review-2.webp", alt: "Tuvaluan reviewer says 'You got a very good training you learn Tuvalu by your self — Good Tecnology'" },
+  { src: "/reviews/review-3.webp", alt: "Tuvaluan reviewer says 'Yeah that's perfect' after a translation test" },
 ];
 
 const upcomingLanguages = [
@@ -183,6 +189,54 @@ function TweetEmbed(props: { tweetUrl: string }) {
       <blockquote class="twitter-tweet" data-theme="dark" data-dnt="true">
         <a href={props.tweetUrl}>Loading tweet...</a>
       </blockquote>
+    </div>
+  );
+}
+
+// ─── Review carousel ───
+
+function ReviewCarousel() {
+  const [current, setCurrent] = createSignal(0);
+  let interval: ReturnType<typeof setInterval>;
+
+  onMount(() => {
+    interval = setInterval(() => {
+      setCurrent((c) => (c + 1) % reviews.length);
+    }, 4000);
+  });
+
+  onCleanup(() => clearInterval(interval));
+
+  const go = (idx: number) => {
+    setCurrent(idx);
+    clearInterval(interval);
+    interval = setInterval(() => {
+      setCurrent((c) => (c + 1) % reviews.length);
+    }, 4000);
+  };
+
+  return (
+    <div class="review-carousel">
+      <div class="review-carousel__track" style={{ transform: `translateX(-${current() * 100}%)` }}>
+        <For each={reviews}>
+          {(r) => (
+            <div class="review-carousel__slide">
+              <img src={r.src} alt={r.alt} class="review-carousel__img" loading="lazy" />
+            </div>
+          )}
+        </For>
+      </div>
+      <div class="review-carousel__dots">
+        <For each={reviews}>
+          {(_, i) => (
+            <button
+              class={`review-carousel__dot ${i() === current() ? "review-carousel__dot--active" : ""}`}
+              onClick={() => go(i())}
+              aria-label={`Review ${i() + 1}`}
+            />
+          )}
+        </For>
+      </div>
     </div>
   );
 }
@@ -359,6 +413,34 @@ export default function DemoPage() {
                 Tuvalu's foreign minister Simon Kofe addresses COP26 from the rising ocean.
                 Over 1 million views. The world watched — then looked away.
               </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ TUVALUAN APPROVED ═══ */}
+      <section class="demo-section demo-section--dark demo-section--reviews">
+        <div class="demo-shell">
+          <div class="demo-reviews-grid">
+            <div class="demo-reviews-grid__copy">
+              <p class="demo-kicker">Tuvaluan approved</p>
+              <h2 class="demo-section__title demo-section__title--light">
+                Real feedback from real speakers.
+              </h2>
+              <div class="demo-reviews__stars">
+                {"★★★★★"}
+              </div>
+              <p class="demo-section__text">
+                We don't just run benchmarks — we send our translations to native Tuvaluan
+                speakers and ask them to judge. These are real text messages from community
+                members reviewing our model's output.
+              </p>
+              <p class="demo-section__text" style={{ "font-style": "italic", opacity: 0.8 }}>
+                "You got a very good training you learn Tuvalu by your self — Good Tecnology"
+              </p>
+            </div>
+            <div class="demo-reviews-grid__carousel">
+              <ReviewCarousel />
             </div>
           </div>
         </div>
