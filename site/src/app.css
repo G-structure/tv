@@ -342,6 +342,51 @@ button {
   min-height: 200px;
 }
 
+/* Why Tuvalu */
+.demo-section--why {
+  background:
+    radial-gradient(circle at 80% 90%, rgba(0, 119, 182, 0.06), transparent 30%),
+    linear-gradient(180deg, #ffffff 0%, #f0f7fa 100%);
+}
+
+.demo-why-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 3rem; align-items: start;
+}
+
+.demo-video-wrap {
+  position: relative; width: 100%; padding-bottom: 56.25%;
+  border-radius: 1.2rem; overflow: hidden;
+  box-shadow: 0 20px 60px rgba(1, 58, 99, 0.15);
+  background: #000;
+}
+.demo-video-wrap iframe {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; border: none;
+}
+
+.demo-video-caption {
+  margin: 0.8rem 0 0; font-size: 0.88rem; line-height: 1.5;
+  color: rgba(1, 58, 99, 0.55); font-style: italic;
+}
+
+.demo-quote {
+  margin: 1.5rem 0 0; padding: 1.2rem 1.4rem;
+  border-left: 3px solid var(--gold);
+  border-radius: 0 1rem 1rem 0;
+  background: rgba(255, 183, 3, 0.06);
+}
+.demo-quote__text {
+  margin: 0; font-size: 1.1rem; line-height: 1.6;
+  font-weight: 600; font-style: italic;
+  color: var(--ocean-deep);
+}
+.demo-quote__cite {
+  display: block; margin-top: 0.6rem;
+  font-size: 0.85rem; font-style: normal;
+  color: rgba(1, 58, 99, 0.6);
+}
+
 /* Link cards */
 .demo-link-grid {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -537,6 +582,7 @@ button {
   .demo-gallery,
   .demo-result-grid,
   .demo-gtc-grid,
+  .demo-why-grid,
   .demo-lab__pillars {
     grid-template-columns: 1fr;
   }

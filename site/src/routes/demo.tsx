@@ -309,6 +309,61 @@ export default function DemoPage() {
         </div>
       </section>
 
+      {/* ═══ WHY TUVALU ═══ */}
+      <section class="demo-section demo-section--why">
+        <div class="demo-shell">
+          <div class="demo-why-grid">
+            <div class="demo-why-grid__copy">
+              <p class="demo-kicker demo-kicker--dark">Why Tuvalu</p>
+              <h2 class="demo-section__title">
+                A country with 15 years left.
+              </h2>
+              <p class="demo-section__text">
+                Tuvalu is a nation of 11,000 people spread across nine coral atolls in the
+                Pacific. The highest point is 4.6 meters above sea level. At current rates
+                of sea level rise, most of the country will be uninhabitable within 15 years.
+              </p>
+              <p class="demo-section__text">
+                When a country disappears, its language disappears with it. Tuvaluan has no
+                backup — no large diaspora, no written literary tradition at scale, no presence
+                in any major AI system. If the land goes underwater and the language has no
+                digital infrastructure, it is gone forever.
+              </p>
+              <p class="demo-section__text">
+                That is why we chose Tuvaluan. Not because it was easy — it was the hardest
+                possible test case. If we can build sovereign AI for a language this small,
+                this endangered, and this invisible to frontier models, the playbook works
+                for every language.
+              </p>
+              <blockquote class="demo-quote">
+                <p class="demo-quote__text">
+                  "We will not stand idly by as the water rises around us."
+                </p>
+                <cite class="demo-quote__cite">
+                  Simon Kofe, Tuvalu Foreign Minister — COP26, standing knee-deep in the rising sea
+                </cite>
+              </blockquote>
+            </div>
+            <div class="demo-why-grid__video">
+              <div class="demo-video-wrap">
+                <iframe
+                  src="https://www.youtube.com/embed/jBBsv0QyscE?si=_zY1GnLk0b9vNZKX&controls=0"
+                  title="Tuvalu's foreign minister gives COP26 speech standing in rising seawater"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  referrerpolicy="strict-origin-when-cross-origin"
+                  allowfullscreen
+                  loading="lazy"
+                />
+              </div>
+              <p class="demo-video-caption">
+                Tuvalu's foreign minister Simon Kofe addresses COP26 from the rising ocean.
+                Over 1 million views. The world watched — then looked away.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ═══ EXPLORE THE SYSTEM ═══ */}
       <section class="demo-section">
         <div class="demo-shell">
