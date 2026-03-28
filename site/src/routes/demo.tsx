@@ -50,39 +50,45 @@ const exploreLinks = [
 const gallery = [
   {
     src: "/judges/nick-football-community.webp",
-    alt: "Nick Miller standing with two local football community members in matching shirts.",
+    alt: "Nick Miller with Tuvaluan football community members in matching team shirts.",
     title: "Built with the community, not for them.",
     tall: false,
+    pos: "center 20%",
   },
   {
     src: "/judges/rainbow-ocean.webp",
-    alt: "Rainbow over the ocean in Tuvalu.",
-    title: "11,000 speakers. One mission.",
+    alt: "Double rainbow arching over the Pacific Ocean in Tuvalu.",
+    title: "11,000 speakers. Nine atolls. One language to save.",
     tall: false,
+    pos: "center center",
   },
   {
     src: "/judges/nick-coconut-crab.webp",
-    alt: "Nick Miller holding a coconut crab in Tuvalu.",
-    title: "Ground truth comes from the ground.",
+    alt: "Nick Miller holding a coconut crab on a Tuvaluan beach.",
+    title: "Fieldwork means getting your hands dirty.",
     tall: true,
+    pos: "center 15%",
   },
   {
     src: "/judges/island-lagoon.webp",
-    alt: "Small tropical island surrounded by clear lagoon water in Tuvalu.",
-    title: "Every language deserves sovereign AI.",
+    alt: "A tiny coral atoll surrounded by clear turquoise lagoon water.",
+    title: "The entire country is 26 km\u00B2. Smaller than Manhattan.",
     tall: false,
+    pos: "center center",
   },
   {
     src: "/judges/beach-tree.webp",
-    alt: "Beach scene with a leaning tree and shallow turquoise water in Tuvalu.",
-    title: "Efficiency over scale.",
+    alt: "Leaning palm tree over shallow turquoise water on a Tuvaluan beach.",
+    title: "4.6 metres above sea level. That's the highest point.",
     tall: true,
+    pos: "center center",
   },
   {
     src: "/judges/futsal-article.webp",
-    alt: "Magazine article about Tuvalu futsal as a springboard.",
-    title: "Products collect data. Data improves models.",
+    alt: "Magazine spread about Tuvalu's futsal team — the lowest-ranked in the world.",
+    title: "Football is the language everyone shares. We started there.",
     tall: true,
+    pos: "center 10%",
   },
 ];
 
@@ -480,7 +486,7 @@ export default function DemoPage() {
             <For each={gallery}>
               {(image) => (
                 <figure class={`demo-gallery__item ${image.tall ? "demo-gallery__item--tall" : ""}`}>
-                  <img src={image.src} alt={image.alt} class="demo-gallery__image" loading="lazy" />
+                  <img src={image.src} alt={image.alt} class="demo-gallery__image" loading="lazy" style={{ "object-position": image.pos }} />
                   <figcaption class="demo-gallery__caption">
                     <p class="demo-gallery__title">{image.title}</p>
                   </figcaption>
