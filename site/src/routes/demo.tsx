@@ -496,7 +496,7 @@ export default function DemoPage() {
               </a>
             </div>
             <p class="demo-newsletter__contact">
-              Need to reach us directly? Email <a href="mailto:founders@sanative.ai">founders@sanative.ai</a>
+              Need to reach us directly? Email <a href="mailto:contact@sanative.ai">contact@sanative.ai</a>
             </p>
           </div>
         </div>
