@@ -1,4 +1,5 @@
 import { createSignal, onMount, Show } from "solid-js";
+import { useLocation } from "@solidjs/router";
 import { ISLANDS } from "~/lib/types";
 
 function generateUUID(): string {
@@ -8,7 +9,10 @@ function generateUUID(): string {
 export default function IslandSelector() {
   const [show, setShow] = createSignal(false);
 
+  const location = useLocation();
+
   onMount(() => {
+    if (location.pathname === "/demo") return;
     if (!localStorage.getItem("talafutipolo_island_chosen")) {
       setShow(true);
     }
