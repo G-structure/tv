@@ -222,15 +222,17 @@ function ReviewCarousel() {
   };
 
   return (
-    <div class="review-carousel">
-      <div class="review-carousel__track" style={{ transform: `translateX(-${current() * 100}%)` }}>
-        <For each={reviews}>
-          {(r) => (
-            <div class="review-carousel__slide">
-              <img src={r.src} alt={r.alt} class="review-carousel__img" loading="lazy" />
-            </div>
-          )}
-        </For>
+    <div>
+      <div class="review-carousel">
+        <div class="review-carousel__track" style={{ transform: `translateX(-${current() * 100}%)` }}>
+          <For each={reviews}>
+            {(r) => (
+              <div class="review-carousel__slide">
+                <img src={r.src} alt={r.alt} class="review-carousel__img" loading="lazy" />
+              </div>
+            )}
+          </For>
+        </div>
       </div>
       <div class="review-carousel__dots">
         <For each={reviews}>

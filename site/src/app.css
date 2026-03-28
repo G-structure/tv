@@ -411,14 +411,13 @@ button {
   width: 100%; height: auto; display: block;
 }
 .review-carousel__dots {
-  position: absolute; bottom: 0.8rem; left: 50%;
-  transform: translateX(-50%);
-  display: flex; gap: 0.5rem;
+  display: flex; justify-content: center;
+  gap: 0.6rem; margin-top: 0.8rem;
 }
 .review-carousel__dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  border: none; padding: 0; cursor: pointer;
-  background: rgba(255, 255, 255, 0.35);
+  width: 10px; height: 10px; min-width: 10px; min-height: 10px;
+  border-radius: 50%; border: none; padding: 0; cursor: pointer;
+  background: rgba(255, 255, 255, 0.3);
   transition: background 200ms ease;
 }
 .review-carousel__dot--active {
