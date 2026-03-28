@@ -367,6 +367,60 @@ For a project with zero ML infrastructure budget, this was essential. We could i
 
 ---
 
+## What This Actually Cost
+
+We get asked this a lot: "how much compute does it take to beat GPT-5.4 at a language?" Here's the honest answer.
+
+![Tinker platform spend dashboard — March 2026](/blog/tinker-spend-march.webp)
+
+*Our full Tinker spend for March 2026. Every experiment, every failed run, every eval. $1,365.92 total.*
+
+**$1,365.92.** That's everything. All of Stage A training, all of Stage B training, synthetic data generation, every checkpoint, every evaluation run, every failed experiment we threw away. 2.41 billion tokens processed. 2.41 TB-days of checkpoint storage. One month of work.
+
+That includes a lot of waste — early Llama-3.2-3B pilots we abandoned, training configs we tuned wrong, synthetic data runs we restarted. The actual minimum cost to reproduce the final pipeline is lower.
+
+### Cost to Reproduce (Just the Final Pipeline)
+
+Thinking Machines' Tinker prices training on `Qwen/Qwen3-30B-A3B` at **$0.36 per million tokens** (train), **$0.30/M** (sample), and **$0.12/M** (prefill).
+
+| Step | Tokens | Price/M | Cost |
+|------|--------|---------|------|
+| Stage A training (3 epochs) | 74.6M | $0.36 | $26.86 |
+| Synthetic data generation (Stage A sampling) | ~200M | $0.30 | $60.00 |
+| Stage B training (3 epochs) | 500M | $0.36 | $180.00 |
+| Evals + inference | ~50M | $0.30 | $15.00 |
+| **Total** | **~825M** | | **~$282** |
+
+You could reproduce the entire two-stage pipeline — from raw parallel corpus to deployed bilingual assistant — for **under $300** on Tinker. That's the cost of a nice dinner, not a research grant.
+
+### What If We Trained a Bigger Model?
+
+The MoE architecture is why this is cheap. Qwen3-30B-A3B has 30B total parameters but only activates 3B during inference. If we'd trained on denser or larger models, the math changes fast:
+
+| Model | Train $/M tokens | Stage B cost (500M tokens) | Full pipeline |
+|-------|-------------------|---------------------------|---------------|
+| Qwen/Qwen3-30B-A3B (ours) | $0.36 | $180 | ~$282 |
+| gpt-oss/GPT-OSS-120B | $0.52 | $260 | ~$370 |
+| Qwen/Qwen3-235B-Instruct | $2.04 | $1,020 | ~$1,200 |
+| moonshot/Kimi-K2 Thinking | $2.93 | $1,465 | ~$1,650 |
+| Qwen/Qwen3.5-30TB-A17B | $6.00 | $3,000 | ~$3,200 |
+
+The 235B Instruct model would cost 4x more. Kimi K2 would cost 6x more. And the largest Qwen 3.5 model would blow past $3,000 for Stage B training alone. For a self-funded project, MoE efficiency isn't a nice-to-have — it's the difference between "we can iterate" and "we get one shot."
+
+### The Real Cost
+
+The $1,365.92 on Tinker is the compute cost. It doesn't include:
+- Months of unpaid scraping, cleaning, and alignment work
+- A trip to Tuvalu to build relationships with the community
+- The time cost of learning to navigate a language with ~zero digital resources
+- Server costs for the live football app and inference endpoint
+
+This entire project is self-funded. No grants. No corporate sponsor. No university affiliation. Just a small team that got unreasonably passionate about a language spoken by 11,000 people on islands that might not exist in 15 years.
+
+If you think this kind of work matters — building open-source AI infrastructure for languages that Big Tech will never prioritize — the [Language Lab](https://tuvalugpt.tv/demo) is a 501(c)(3) nonprofit. We could use the help. What can we say, we just really love Tuvalu.
+
+---
+
 ## Thanks
 
 This project exists because of the people and organizations who made it possible.
