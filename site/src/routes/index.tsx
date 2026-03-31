@@ -5,6 +5,7 @@ import type { Article, Category } from "~/lib/types";
 import ArticleCard from "~/components/ArticleCard";
 import CategoryPills from "~/components/CategoryPills";
 import OGMeta from "~/components/OGMeta";
+import { absoluteUrl } from "~/lib/site";
 
 const PER_PAGE = 20;
 
@@ -35,6 +36,7 @@ export default function Home() {
       <OGMeta
         title="Talafutipolo Tuvalu — Tala Futipolo i te Gagana Tuvalu"
         description="Tala futipolo mai te lalolagi i te gagana Tuvalu. Football news from around the world in the Tuvaluan language."
+        url={absoluteUrl("/")}
       />
 
       <Show when={data()}>

@@ -4,6 +4,7 @@ import { getFateleStats } from "~/lib/db";
 import type { FateleStats } from "~/lib/types";
 import { ISLANDS } from "~/lib/types";
 import OGMeta from "~/components/OGMeta";
+import { absoluteUrl } from "~/lib/site";
 
 const loadFatele = cache(async () => {
   "use server";
@@ -36,6 +37,7 @@ export default function FatelePage() {
       <OGMeta
         title="Te Fatele | TALAFUTIPOLO"
         description="Community dashboard — help translate football news into Tuvaluan"
+        url={absoluteUrl("/fatele")}
       />
 
       <div class="pt-6 pb-4 text-center">

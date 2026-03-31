@@ -1,9 +1,16 @@
-import { Show } from "solid-js";
+import { onMount, Show } from "solid-js";
 import type { Message } from "~/lib/types";
-import { renderMarkdown } from "~/lib/markdown";
+import { renderMarkdown, initCopyButtons } from "~/lib/markdown";
 
 export default function ChatMessage(props: { message: Message }) {
   const isUser = () => props.message.role === "user";
+  let contentRef: HTMLDivElement | undefined;
+
+  onMount(() => {
+    if (contentRef && !isUser()) {
+      initCopyButtons(contentRef);
+    }
+  });
 
   return (
     <div class="py-5">
@@ -14,6 +21,7 @@ export default function ChatMessage(props: { message: Message }) {
               ? "bg-white/[0.08] text-[var(--color-text-secondary)]"
               : "bg-[var(--color-accent)]/15 text-[var(--color-accent)]"
           }`}
+          aria-hidden="true"
         >
           {isUser() ? "U" : "T"}
         </div>
@@ -31,6 +39,7 @@ export default function ChatMessage(props: { message: Message }) {
             }
           >
             <div
+              ref={contentRef}
               class="markdown-content text-[14px] leading-relaxed"
               innerHTML={renderMarkdown(props.message.content)}
             />

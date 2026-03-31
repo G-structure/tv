@@ -65,7 +65,7 @@ export default function Chat() {
       <Title>TVL Chat</Title>
       <div class="chat-theme h-screen flex flex-col">
         {/* Header */}
-        <nav class="flex items-center justify-between px-6 h-12 border-b border-[var(--color-border)]">
+        <nav aria-label="Chat navigation" class="flex items-center justify-between px-6 h-12 border-b border-[var(--color-border)]">
           <div class="flex items-center gap-3">
             <a href="/" class="text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] text-[12px] transition-colors">
               TALAFUTIPOLO
@@ -82,6 +82,7 @@ export default function Chat() {
               Training
             </a>
             <button
+              type="button"
               onClick={clearChat}
               class="text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
             >

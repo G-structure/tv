@@ -1,5 +1,6 @@
 import { A, createAsync, cache, useParams } from "@solidjs/router";
 import { For, Show } from "solid-js";
+import { HttpStatusCode } from "@solidjs/start";
 import PostCard from "~/components/blog/PostCard";
 import OGMeta from "~/components/OGMeta";
 import StructuredData from "~/components/StructuredData";
@@ -94,6 +95,7 @@ export default function BlogTagPage() {
 function TagNotFound() {
   return (
     <main class="blog-page blog-page--taxonomy">
+      <HttpStatusCode code={404} />
       <div class="blog-shell blog-shell--narrow blog-empty-state">
         <p class="blog-kicker">Language Lab Journal</p>
         <h1 class="blog-section-title">Topic not found.</h1>

@@ -13,6 +13,8 @@ export async function POST(event: APIEvent) {
 
     if (
       !body.article_id ||
+      typeof body.article_id !== "string" ||
+      body.article_id.length > 200 ||
       (helpful !== 0 && helpful !== 1) ||
       !VALID_MODES.has(body.mode_preference)
     ) {

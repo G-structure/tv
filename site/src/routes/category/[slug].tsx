@@ -5,6 +5,7 @@ import type { Article, Category } from "~/lib/types";
 import ArticleCard from "~/components/ArticleCard";
 import CategoryPills from "~/components/CategoryPills";
 import OGMeta from "~/components/OGMeta";
+import { absoluteUrl } from "~/lib/site";
 
 const PER_PAGE = 20;
 
@@ -39,6 +40,7 @@ export default function CategoryPage() {
       <OGMeta
         title={`${displayName()} | TALAFUTIPOLO`}
         description={`${displayName()} football news in Tuvaluan and English`}
+        url={absoluteUrl(`/category/${params.slug}`)}
       />
 
       <Show when={data()}>

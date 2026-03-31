@@ -25,7 +25,7 @@ export async function GET() {
       <description>${description}</description>
       <pubDate>${new Date(summary.publishedAt).toUTCString()}</pubDate>
       <enclosure url="${escapeXml(absoluteImageUrl(summary.socialImage || summary.image))}" type="image/jpeg" />
-      <content:encoded><![CDATA[${content}]]></content:encoded>
+      <content:encoded><![CDATA[${content.replace(/\]\]>/g, "]]]]><![CDATA[>")}]]></content:encoded>
     </item>`;
     })
     .join("\n");

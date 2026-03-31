@@ -1,5 +1,6 @@
 import type { APIEvent } from "@solidjs/start/server";
 
+// Re-use the shared DB accessor from lib/db (via dynamic import to avoid circular deps)
 async function getDb(): Promise<D1Database> {
   const db = (process.env as any).DB || (globalThis as any).__env__?.DB;
   if (db) return db;
@@ -9,8 +10,11 @@ async function getDb(): Promise<D1Database> {
   return proxy.env.DB;
 }
 
+let _tableReady: Promise<void> | null = null;
+
 async function ensureTable(db: D1Database) {
-  await db
+  if (_tableReady) { await _tableReady; return; }
+  _tableReady = db
     .prepare(
       `CREATE TABLE IF NOT EXISTS newsletter_signups (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -18,15 +22,21 @@ async function ensureTable(db: D1Database) {
         created_at TEXT NOT NULL DEFAULT (datetime('now'))
       )`
     )
-    .run();
+    .run()
+    .then(() => {});
+  await _tableReady;
 }
+
+// Basic RFC 5321 email check (not exhaustive, but good enough for a signup form)
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 export async function POST(event: APIEvent) {
   try {
     const body = await event.request.json();
-    const email = (body.email || "").trim().toLowerCase();
+    const raw = typeof body?.email === "string" ? body.email : "";
+    const email = raw.trim().toLowerCase();
 
-    if (!email || !email.includes("@") || email.length > 320) {
+    if (!email || !EMAIL_RE.test(email) || email.length > 320) {
       return new Response(JSON.stringify({ error: "Invalid email" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },

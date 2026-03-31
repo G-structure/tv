@@ -1,9 +1,11 @@
 import { createAsync, cache, useParams, A } from "@solidjs/router";
 import { createSignal, For, Show } from "solid-js";
+import { HttpStatusCode } from "@solidjs/start";
 import { getArticle } from "~/lib/db";
 import type { Article } from "~/lib/types";
 import { formatDate } from "~/lib/time";
 import OGMeta from "~/components/OGMeta";
+import { absoluteUrl } from "~/lib/site";
 import type { LanguageMode } from "~/components/LanguageToggle";
 import LanguageToggle from "~/components/LanguageToggle";
 import CoachTranslatorCard from "~/components/CoachTranslatorCard";
@@ -103,22 +105,26 @@ function BilingualParagraph(props: {
           <p class="flex-1 text-base leading-relaxed text-gray-900">{props.tvl}</p>
           <div class="shrink-0 flex gap-1 mt-0.5">
             <button
+              type="button"
               onClick={() => handleVote("thumbs_up")}
-              class={`cursor-pointer bg-transparent border-none p-0.5 min-h-0 rounded text-base leading-none ${
+              class={`cursor-pointer bg-transparent border-none p-2 min-w-[36px] min-h-[36px] rounded text-base leading-none flex items-center justify-center ${
                 vote() === "thumbs_up" ? "opacity-100 scale-110" : "opacity-40 hover:opacity-70"
               }`}
               title="Tonu! (Good translation)"
               aria-label="Good translation"
+              aria-pressed={vote() === "thumbs_up"}
             >
               👍🏾
             </button>
             <button
+              type="button"
               onClick={() => handleVote("thumbs_down")}
-              class={`cursor-pointer bg-transparent border-none p-0.5 min-h-0 rounded text-base leading-none ${
+              class={`cursor-pointer bg-transparent border-none p-2 min-w-[36px] min-h-[36px] rounded text-base leading-none flex items-center justify-center ${
                 vote() === "thumbs_down" ? "opacity-100 scale-110" : "opacity-40 hover:opacity-70"
               }`}
               title="Seki tonu (Bad translation)"
               aria-label="Bad translation"
+              aria-pressed={vote() === "thumbs_down"}
             >
               👎🏾
             </button>
@@ -163,6 +169,8 @@ export default function ArticlePage() {
       when={article()}
       fallback={
         <main class="max-w-3xl mx-auto p-4 text-center">
+          <HttpStatusCode code={404} />
+          <OGMeta title="Article not found" description="This article may have been removed or the ID is invalid." />
           <h1 class="text-xl font-bold text-gray-900 mt-8">
             Article not found
           </h1>
@@ -196,6 +204,7 @@ export default function ArticlePage() {
               publishedAt={a().published_at}
               category={a().category || undefined}
               type="article"
+              url={absoluteUrl(`/articles/${a().id}`)}
             />
 
             {/* Top bar with back + language toggle */}
@@ -219,7 +228,12 @@ export default function ArticlePage() {
               <img
                 src={a().image_url!}
                 alt={a().image_alt || title()}
+                width={a().image_width || undefined}
+                height={a().image_height || undefined}
                 class="w-full h-56 sm:h-72 object-cover"
+                loading="eager"
+                fetchpriority="high"
+                decoding="async"
               />
             </Show>
 

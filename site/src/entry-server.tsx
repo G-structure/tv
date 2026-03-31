@@ -4,7 +4,7 @@ import { createHandler, StartServer } from "@solidjs/start/server";
 export default createHandler(() => (
   <StartServer
     document={({ assets, children, scripts }) => (
-      <html lang="tvl">
+      <html lang="en">
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -16,7 +16,7 @@ export default createHandler(() => (
           <link rel="preconnect" href="https://e0.365dm.com" crossorigin="" />
           <link rel="preconnect" href="https://assets.goal.com" crossorigin="" />
           <link rel="preconnect" href="https://digitalhub.fifa.com" crossorigin="" />
-          <link rel="icon" href="/favicon.ico" />
+          <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
           <link rel="manifest" href="/manifest.json" />
           <link rel="apple-touch-icon" href="/icons/icon-192.png" />
           {assets}

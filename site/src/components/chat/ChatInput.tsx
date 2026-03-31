@@ -27,7 +27,9 @@ export default function ChatInput(props: {
         onSubmit={handleSubmit}
         class="max-w-3xl mx-auto relative"
       >
+        <label for="chat-input" class="sr-only">Message</label>
         <textarea
+          id="chat-input"
           value={text()}
           onInput={(e) => setText(e.currentTarget.value)}
           onKeyDown={handleKeyDown}
@@ -39,9 +41,10 @@ export default function ChatInput(props: {
         <button
           type="submit"
           disabled={props.disabled || !text().trim()}
+          aria-label="Send message"
           class="absolute right-2.5 bottom-2.5 bg-[var(--color-accent)] text-[#080f1a] w-7 h-7 rounded-md flex items-center justify-center transition-opacity disabled:opacity-15 hover:brightness-110"
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M3 13L13 8L3 3V7L9 8L3 9V13Z" fill="currentColor" />
           </svg>
         </button>

@@ -1,5 +1,6 @@
 import { A, createAsync, cache, useParams } from "@solidjs/router";
 import { For, Show } from "solid-js";
+import { HttpStatusCode } from "@solidjs/start";
 import AuthorCard from "~/components/blog/AuthorCard";
 import PostCard from "~/components/blog/PostCard";
 import OGMeta from "~/components/OGMeta";
@@ -69,6 +70,7 @@ export default function BlogAuthorPage() {
 function AuthorNotFound() {
   return (
     <main class="blog-page blog-page--taxonomy">
+      <HttpStatusCode code={404} />
       <div class="blog-shell blog-shell--narrow blog-empty-state">
         <p class="blog-kicker">Language Lab Journal</p>
         <h1 class="blog-section-title">Author not found.</h1>

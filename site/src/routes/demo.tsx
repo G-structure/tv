@@ -1,6 +1,7 @@
 import { A } from "@solidjs/router";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import OGMeta from "~/components/OGMeta";
+import { absoluteUrl } from "~/lib/site";
 
 // ─── Data ───
 
@@ -266,7 +267,7 @@ export default function DemoPage() {
         image="/judges/rainbow-ocean.webp"
         imageWidth={1366}
         imageHeight={768}
-        url="https://tuvalugpt.tv/demo"
+        url={absoluteUrl("/demo")}
       />
 
       {/* ═══ HERO ═══ */}

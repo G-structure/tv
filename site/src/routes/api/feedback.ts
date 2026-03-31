@@ -6,7 +6,15 @@ export async function POST(event: APIEvent) {
     const body = await event.request.json();
 
     const validTypes = new Set(["thumbs_up", "thumbs_down"]);
-    if (!body.article_id || typeof body.paragraph_idx !== "number" || !validTypes.has(body.feedback_type)) {
+    if (
+      !body.article_id ||
+      typeof body.article_id !== "string" ||
+      body.article_id.length > 200 ||
+      typeof body.paragraph_idx !== "number" ||
+      !Number.isFinite(body.paragraph_idx) ||
+      body.paragraph_idx < 0 ||
+      !validTypes.has(body.feedback_type)
+    ) {
       return new Response(JSON.stringify({ error: "Invalid feedback" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },

@@ -1,4 +1,4 @@
-import { createResource, createSignal, Show } from "solid-js";
+import { createResource, createSignal, onCleanup, Show } from "solid-js";
 import { isServer } from "solid-js/web";
 
 interface ModelInfo {
@@ -22,12 +22,17 @@ export default function ModelBadge() {
   const [info, { refetch }] = createResource(fetchModelInfo);
   const [expanded, setExpanded] = createSignal(false);
 
-  setInterval(() => refetch(), 30000);
+  const timer = setInterval(() => refetch(), 30000);
+  onCleanup(() => clearInterval(timer));
 
   return (
     <div class="relative">
       <button
+        type="button"
         onClick={() => setExpanded(!expanded())}
+        onKeyDown={(e) => { if (e.key === "Escape" && expanded()) { setExpanded(false); e.stopPropagation(); } }}
+        aria-expanded={expanded()}
+        aria-label="Model training status"
         class="flex items-center gap-2 text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
       >
         {info.loading && <span>Connecting...</span>}
@@ -54,12 +59,9 @@ export default function ModelBadge() {
         <div class="absolute top-7 left-0 z-50 bg-[var(--color-surface-2)] border border-[var(--color-border)] rounded-lg p-4 shadow-xl shadow-black/40 min-w-[260px]">
           <div class="text-[12px] font-medium text-[var(--color-text)] mb-3">Training</div>
           <div class="space-y-2 text-[11px]">
-            <Row label="Model" value="Qwen3-30B-A3B" />
-            <Row label="Step" value={`${info()!.latest_train_step.toLocaleString()} / 45,561`} />
-            <Row
-              label="Progress"
-              value={`${((info()!.latest_train_step / 45561) * 100).toFixed(1)}%`}
-            />
+            <Row label="Run" value={info()!.run || "—"} />
+            <Row label="Step" value={info()!.latest_train_step.toLocaleString()} />
+            <Row label="Status" value={info()!.status || "—"} />
             <Show when={info()!.latest_train_nll !== null}>
               <Row label="Train NLL" value={info()!.latest_train_nll!.toFixed(4)} />
             </Show>

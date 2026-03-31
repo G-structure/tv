@@ -7,7 +7,12 @@ export async function POST(event: APIEvent) {
   try {
     const body = await event.request.json();
 
-    if (!body.article_id || !VALID_TYPES.has(body.signal_type)) {
+    if (
+      !body.article_id ||
+      typeof body.article_id !== "string" ||
+      body.article_id.length > 200 ||
+      !VALID_TYPES.has(body.signal_type)
+    ) {
       return new Response(JSON.stringify({ error: "Invalid signal" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },

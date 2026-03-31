@@ -3,11 +3,14 @@ import { For, Show } from "solid-js";
 import { searchArticles } from "~/lib/db";
 import ArticleCard from "~/components/ArticleCard";
 import OGMeta from "~/components/OGMeta";
+import { absoluteUrl } from "~/lib/site";
 
 const loadSearch = cache(async (q: string) => {
   "use server";
   if (!q || q.length < 2) return [];
-  return await searchArticles(q, 30);
+  // Cap query length to prevent pathological LIKE patterns
+  const trimmed = q.slice(0, 200);
+  return await searchArticles(trimmed, 30);
 }, "search");
 
 export const route = {
@@ -27,6 +30,7 @@ export default function SearchPage() {
       <OGMeta
         title="Saili | TALAFUTIPOLO"
         description="Search football articles in Tuvaluan and English"
+        url={absoluteUrl("/search")}
       />
 
       <div class="pt-6 pb-4">
@@ -34,12 +38,15 @@ export default function SearchPage() {
       </div>
 
       {/* Search form */}
-      <form action="/search" method="get" class="mb-6">
+      <form action="/search" method="get" class="mb-6" role="search">
         <div class="flex gap-2">
+          <label for="search-input" class="sr-only">Search articles</label>
           <input
-            type="text"
+            id="search-input"
+            type="search"
             name="q"
             value={q()}
+            maxLength={200}
             placeholder="Saili tala... (Search articles)"
             class="flex-1 px-4 py-3 border border-[var(--sky-dark)] rounded-lg text-sm bg-white focus:outline-none focus:border-[var(--ocean-bright)]"
           />
