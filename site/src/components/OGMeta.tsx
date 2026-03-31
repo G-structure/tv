@@ -29,7 +29,8 @@ interface OGMetaProps {
 
 export default function OGMeta(props: OGMetaProps) {
   const canonicalUrl = () => props.url;
-  const imageUrl = () => absoluteImageUrl(props.image || SITE_META.defaultOgImage);
+  const hasImage = () => props.image !== null;
+  const imageUrl = () => hasImage() ? absoluteImageUrl(props.image || SITE_META.defaultOgImage) : "";
   const imageWidth = () => props.imageWidth || SITE_META.defaultOgImageWidth;
   const imageHeight = () => props.imageHeight || SITE_META.defaultOgImageHeight;
   const imageAlt = () => props.imageAlt || SITE_META.defaultOgImageAlt;
@@ -66,10 +67,10 @@ export default function OGMeta(props: OGMetaProps) {
       <Meta property="og:locale" content={props.locale || "en_US"} />
       <Meta property="og:locale:alternate" content="tvl" />
       {canonicalUrl() ? <Meta property="og:url" content={canonicalUrl()!} /> : null}
-      <Meta property="og:image" content={imageUrl()} />
-      <Meta property="og:image:width" content={String(imageWidth())} />
-      <Meta property="og:image:height" content={String(imageHeight())} />
-      <Meta property="og:image:alt" content={imageAlt()} />
+      {hasImage() ? <Meta property="og:image" content={imageUrl()} /> : null}
+      {hasImage() ? <Meta property="og:image:width" content={String(imageWidth())} /> : null}
+      {hasImage() ? <Meta property="og:image:height" content={String(imageHeight())} /> : null}
+      {hasImage() ? <Meta property="og:image:alt" content={imageAlt()} /> : null}
 
       {props.publishedAt ? (
         <Meta property="article:published_time" content={props.publishedAt} />
@@ -84,11 +85,11 @@ export default function OGMeta(props: OGMetaProps) {
         <Meta property="article:tag" content={keyword} />
       ))}
 
-      <Meta name="twitter:card" content="summary_large_image" />
+      <Meta name="twitter:card" content={hasImage() ? "summary_large_image" : "summary"} />
       <Meta name="twitter:title" content={props.title} />
       <Meta name="twitter:description" content={description()} />
-      <Meta name="twitter:image" content={imageUrl()} />
-      <Meta name="twitter:image:alt" content={imageAlt()} />
+      {hasImage() ? <Meta name="twitter:image" content={imageUrl()} /> : null}
+      {hasImage() ? <Meta name="twitter:image:alt" content={imageAlt()} /> : null}
     </>
   );
 }

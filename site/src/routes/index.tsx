@@ -37,6 +37,7 @@ export default function Home() {
         title="Talafutipolo"
         description="Tala futipolo mai te lalolagi i te gagana Tuvalu. Football news from around the world in the Tuvaluan language."
         url={absoluteUrl("/")}
+        image={null}
         siteName="Talafutipolo"
         titleSuffix="Tala Futipolo i te Gagana Tuvalu"
       />
