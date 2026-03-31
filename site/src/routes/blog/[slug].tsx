@@ -135,8 +135,11 @@ export default function BlogPostPage() {
                 <A href="/blog" class="blog-text-link">
                   All posts
                 </A>
-                <a href={SITE_META.feeds.blogRss} class="blog-text-link">
-                  Subscribe
+                <a href={SITE_META.feeds.blogRss} target="_self" class="blog-text-link">
+                  RSS feed
+                </a>
+                <a href={SITE_META.feeds.blogJson} target="_self" class="blog-text-link">
+                  JSON feed
                 </a>
               </div>
 

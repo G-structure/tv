@@ -119,8 +119,19 @@ export default function BlogIndex() {
                     <A href="/demo" class="blog-button blog-button--ghost">
                       Project overview
                     </A>
-                    <a href={SITE_META.feeds.blogRss} class="blog-button blog-button--ghost">
-                      RSS
+                    <a
+                      href={SITE_META.feeds.blogRss}
+                      target="_self"
+                      class="blog-button blog-button--ghost"
+                    >
+                      RSS Feed
+                    </a>
+                    <a
+                      href={SITE_META.feeds.blogJson}
+                      target="_self"
+                      class="blog-button blog-button--ghost"
+                    >
+                      JSON Feed
                     </a>
                   </div>
                 </div>
