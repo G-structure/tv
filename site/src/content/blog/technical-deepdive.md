@@ -2,12 +2,16 @@
 title: How We Built a 3B Model That Beats GPT-5.4 at Tuvaluan — And What It Can't Do Yet
 description: A technical deep dive into two-stage training, synthetic data bootstrapping, and why the hardest eval is a children's book.
 date: 2026-03-27
+updated: 2026-03-30
+kind: Technical deep dive
+featured: true
 image: /blog/pai-vau-cover.webp
-authors: ["Language Lab"]
+imageAlt: The cover of The Gifts of Pai and Vau, a bilingual children's book used for held-out evaluation.
+socialImage: /social/technical-deepdive-card.jpg
+socialImageAlt: Language Lab Journal technical deep dive social card featuring The Gifts of Pai and Vau cover art.
+authors: ["language-lab"]
 tags: ["technical", "training", "evaluation"]
 ---
-
-*A technical deep dive into two-stage training, synthetic data bootstrapping, and why the hardest eval is a children's book.*
 
 **Code & data**: [github.com/G-structure/tuvalu-llm](https://github.com/G-structure/tuvalu-llm) | **Live model**: [tuvalugpt.tv/chat](https://tuvalugpt.tv/chat) | **Dataset**: [HuggingFace](https://huggingface.co/datasets/FriezaForce/tv2en-cleaned)
 
@@ -216,11 +220,7 @@ We lead on 6 of 7 task slices. The one we lose is summarization — frontier mod
 
 The textbook slice is the most honest eval we have. It consists of children's books and museum activity sheets that were **never in any training data** — not in the parallel corpus, not in the synthetic data, not in any form.
 
-To make this concrete, we ran a head-to-head comparison on a single, complete children's book: *The Gifts of Pai and Vau* (Meaalofa a Pai mo Vau), a 12-paragraph Nanumean legend published by Reading Warrior. The full book is a bilingual Tuvaluan/English text — we use the English as source and the Tuvaluan as reference, then ask each model to translate.
-
-![Cover of "The Gifts of Pai and Vau" — a Pasifika Superheroes children's book](/blog/pai-vau-cover.webp)
-
-*"The Gifts of Pai and Vau" by David Riley, illustrated by Chad Robertson. Nanumean translation by Siliga Tala. Published by Reading Warrior, Auckland. [Read the full book (PDF)](/blog/pai-vau-full.pdf).*
+To make this concrete, we ran a head-to-head comparison on a single, complete children's book: *The Gifts of Pai and Vau* (Meaalofa a Pai mo Vau), a 12-paragraph Nanumean legend published by Reading Warrior. The full book is a bilingual Tuvaluan/English text — we use the English as source and the Tuvaluan as reference, then ask each model to translate. [Read the full bilingual book (PDF)](/blog/pai-vau-full.pdf).
 
 #### English → Tuvaluan (the hard direction)
 

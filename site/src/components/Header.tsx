@@ -18,9 +18,9 @@ export default function Header(props: HeaderProps) {
           <A
             href="/blog"
             class="text-[var(--sky-dark)] hover:text-[var(--gold)] transition-colors no-underline text-sm"
-            title="Blog"
+            title="Language Lab Journal"
           >
-            Blog
+            Journal
           </A>
           <A
             href="/fatele"

@@ -4,6 +4,9 @@
 /icons/*
   Cache-Control: public, max-age=31536000, immutable
 
+/social/*
+  Cache-Control: public, max-age=31536000, immutable
+
 /manifest.json
   Cache-Control: public, max-age=86400
 
