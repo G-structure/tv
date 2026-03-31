@@ -228,14 +228,13 @@ function createMarkedRenderer() {
       supportedLanguage !== "plaintext"
         ? hljs.highlight(token.text, { language: supportedLanguage }).value
         : escapeHtml(token.text);
-    const id = `code-${Math.random().toString(36).slice(2, 9)}`;
 
     return `<div class="blog-code">
       <div class="blog-code__header">
-        <span class="blog-code__lang">${supportedLanguage}</span>
-        <button type="button" onclick="navigator.clipboard.writeText(document.getElementById('${id}')?.textContent || '').then(()=>{this.textContent='Copied';setTimeout(()=>{this.textContent='Copy'},1800)})" class="blog-code__copy">Copy</button>
+        <span class="blog-code__lang">${escapeHtml(supportedLanguage)}</span>
+        <button type="button" class="blog-code__copy" aria-label="Copy code">Copy</button>
       </div>
-      <pre class="blog-code__pre"><code id="${id}" class="hljs language-${supportedLanguage}">${highlighted}</code></pre>
+      <pre class="blog-code__pre"><code class="hljs language-${escapeHtml(supportedLanguage)}">${highlighted}</code></pre>
     </div>`;
   };
 
@@ -338,4 +337,21 @@ export function parseBlogMeta(slug: string, raw: string): BlogPost {
   const post = buildPostBase(slug, raw);
   const { body: _body, ...meta } = post;
   return meta;
+}
+
+/**
+ * Wire up delegated click handlers for copy buttons in blog code blocks.
+ * Call once after the blog content is mounted.
+ */
+export function initBlogCopyButtons(root: HTMLElement) {
+  root.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".blog-code__copy");
+    if (!btn) return;
+    const pre = btn.closest(".blog-code")?.querySelector("pre code");
+    if (!pre) return;
+    navigator.clipboard.writeText(pre.textContent || "").then(() => {
+      btn.textContent = "Copied";
+      setTimeout(() => { btn.textContent = "Copy"; }, 1800);
+    });
+  });
 }
