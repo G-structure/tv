@@ -166,7 +166,7 @@ function BilingualParagraph(props: {
 
 export default function ArticlePage() {
   const params = useParams();
-  const article = createAsync(() => loadArticle(params.id));
+  const article = createAsync(() => loadArticle(params.id), { deferStream: true });
   const [langMode, setLangMode] = createSignal<LanguageMode>("tv");
 
   return (
