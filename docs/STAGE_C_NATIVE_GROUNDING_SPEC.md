@@ -1,23 +1,17 @@
 # Stage C Native-Document Grounding Spec
 
-This document turns the current Stage C direction into an operational data pipeline.
+This document defines **what Stage C is**, **what it is not**, and **what artifacts must exist** before Stage C data is considered ready for training.
 
-Short version:
+Stage C is not a single prompt recipe. It is a **native-document grounding pipeline** for improving the bilingual capability adapter with real, source-backed Tuvaluan data.
 
-- Do not treat Stage C as one fixed prompt template.
-- Treat it as a native-document grounding pipeline built around real Tuvaluan documents.
-- Keep the assistant side real Tuvaluan whenever possible.
-- Spend most generation effort on prompts, task variants, preference pairs, metadata, and evaluation artifacts around native TVL answers.
+The central rule is simple:
 
-This spec is intentionally compatible with the repo's current staged training pipeline, where:
-
-- Stage A = translation adapter
-- Stage B = bilingual capability adapter
-
-In discussion, "Stage C" here means the next data-improvement layer for the bilingual capability stage, centered on grounded native-TVL data.
+- keep the **assistant side** in real or source-faithful Tuvaluan whenever possible
+- spend synthetic effort mainly on **prompt expansion**, **task variation**, **metadata**, **ranking**, and **evaluation** around grounded Tuvaluan answers
 
 Related docs:
 
+- [STAGE_C_PLAN_FROM_RESEARCH.md](STAGE_C_PLAN_FROM_RESEARCH.md)
 - [TRAINING_PIPELINE.md](TRAINING_PIPELINE.md)
 - [TVL_EN_TINKER_PLAN.md](TVL_EN_TINKER_PLAN.md)
 - [UNSTRUCTURED_DATA_SOURCES.md](UNSTRUCTURED_DATA_SOURCES.md)
@@ -25,62 +19,141 @@ Related docs:
 
 Last updated: `2026-03-30`
 
-## 1. Goals
+## 1. Scope
 
-Stage C should improve:
+In the current repo vocabulary:
 
-1. Native Tuvaluan instruction following
-2. Faithfulness to local source documents
-3. Register control and style flexibility
-4. Entity preservation for place names, institutions, dates, and quotes
-5. Resistance to English leakage, translationese, and wrong-language drift
+- **Stage A** = translation adapter
+- **Stage B** = bilingual capability adapter
+- **Stage C** = the next data layer for the bilingual capability stage, built around grounded native-TVL sources rather than generic translated instructions
 
-It should not primarily optimize for:
+This spec covers:
 
-- raw synthetic volume
-- translated-English-only instructions
+1. source selection
+2. grounded task construction
+3. artifact layout
+4. JSONL contracts
+5. quality gates
+6. preference data targets
+7. evaluation requirements
+8. minimum conditions for a first shippable Stage C build
+
+This spec does **not** cover:
+
+- LoRA hyperparameters
+- trainer implementation details
+- OCR model selection in full detail
+- general repo-wide data conventions that already belong in [TRAINING_PIPELINE.md](TRAINING_PIPELINE.md)
+
+## 2. Design goals
+
+Stage C should improve the following behaviors:
+
+1. native Tuvaluan instruction following
+2. faithful use of local source documents
+3. better register control across news, civic, formal, and plain-language writing
+4. stronger preservation of names, institutions, dates, numbers, and quotations
+5. lower English leakage, lower translationese, and lower wrong-language drift
+
+Stage C should **not** primarily optimize for:
+
+- maximum synthetic volume
+- translated-English-only chat data
 - RL-heavy experimentation under short deadlines
+- ungrounded “write anything in Tuvaluan” generation
 
-## 2. Core Principle
+## 3. Operating thesis
 
-The center of gravity is the source document, not the prompt template.
+The source document is the center of gravity.
 
-For each native TVL document or segment, the pipeline should derive many task variants while preserving a real or source-supported Tuvaluan answer. The synthetic work should mostly expand the instruction surface around grounded TVL content.
+For each native TVL document, page range, transcript span, or cleaned segment, Stage C should derive multiple task variants while preserving a **real** or **source-supported** Tuvaluan answer.
 
-Preferred order of value:
+Preferred answer hierarchy:
 
-1. Native TVL answer copied or lightly transformed from a real source
-2. Native TVL answer tightly constrained by extracted facts from a real source
-3. Synthetic TVL answer only when grounded answers are impossible and the example is clearly marked
+1. **direct source text**
+2. **light source-faithful transformation**
+3. **fact compilation from source spans**
+4. **clearly marked synthetic fallback** only when grounding is impossible and the example is excluded from the default training pool
 
-## 3. Source Priorities
+The practical consequence is that Stage C should look much more like:
 
-Stage C should draw first from documents that are already local, culturally grounded, and mostly native TVL.
+- “wrap this native TVL article in several task forms”
+
+than like:
+
+- “translate a large English chat dataset and call it Stage C”
+
+## 4. Source policy
+
+### 4.1 Priority order
+
+Use the most native, local, and behaviorally rich material first.
 
 Highest-priority source families:
 
-- Recovered native TVL news scans and notices
-- Government and civic documents with substantial Tuvaluan text
-- Stories, oral-history material, and cultural writing
-- Community-facing health and education documents
-- Radio/news style prose
-- Speech transcripts or subtitle-like material once cleaned
+- recovered native TVL news scans and notices
+- government and civic documents with substantial Tuvaluan text
+- oral-history, narrative, and cultural writing
+- community-facing health and education documents
+- radio-style and news-style prose
+- cleaned subtitles or transcripts from media assets
 
-Likely repo-local candidates today:
+Likely repo-local candidates are cataloged in [UNSTRUCTURED_DATA_SOURCES.md](UNSTRUCTURED_DATA_SOURCES.md).
 
-- historic news scans after OCR recovery
-- native or bilingual government PDFs
-- Nanumea oral/traditional narrative material
-- children's books and community literature
-- any held-out native TVL notices or admin text not already overused in training
+### 4.2 Source tiers
 
-For source inventory, see [UNSTRUCTURED_DATA_SOURCES.md](UNSTRUCTURED_DATA_SOURCES.md).
+Use a simple three-tier model when building Stage C.
 
-## 4. Task Families
+**Tier A — backbone**
 
-One source document should expand into multiple task families. Do not over-concentrate on `topic -> full article`.
+Use heavily for grounded answer creation.
 
-Required task families:
+Examples:
+
+- recovered native news scans
+- native-heavy civic PDFs
+- oral and traditional narrative material
+- long-form community documents with natural Tuvaluan prose
+
+**Tier B — support**
+
+Use for supplemental task expansion, bilingual anchoring, and terminology support.
+
+Examples:
+
+- paired PDFs
+- bilingual government/health/education PDFs
+- community informational materials with mixed TVL/EN coverage
+
+**Tier C — lexical/anchor only**
+
+Use for term control, glossary tasks, lexical augmentation, and short anchored rewrites, but not as the behavioral backbone of Stage C.
+
+Examples:
+
+- dictionary resources
+- phrase corpora
+- short sentence-pair datasets
+- word cards
+
+### 4.3 Source exclusions by default
+
+Do not include the following in the default Stage C training pool unless they are explicitly cleaned and promoted:
+
+- duplicate/reference copies
+- metadata helper files
+- archive bundles
+- unpaired staging files from “don’t use yet” folders
+- low-confidence OCR pages without article recovery
+- media files with no transcript path
+
+## 5. Task model
+
+One source document should expand into **many** grounded task families. Do not concentrate the distribution around one `topic -> full article` template.
+
+### 5.1 Required task families
+
+Every serious Stage C build should support these families where source type allows:
 
 - `native_request_article`
 - `english_request_tvl_answer`
@@ -99,7 +172,9 @@ Required task families:
 - `translation_to_english`
 - `explain_in_english`
 
-Optional later families:
+### 5.2 Optional later task families
+
+These are useful, but should not block the first Stage C release:
 
 - `bulletin_board_notice`
 - `speech_script`
@@ -107,108 +182,142 @@ Optional later families:
 - `stance_or_theme_identification`
 - `error_correction`
 
-## 5. Prompt Modes
+### 5.3 Prompt modes
 
-Each grounded answer should usually be paired with multiple prompt styles.
+Each grounded answer should normally be paired with multiple prompt styles.
 
-Minimum prompt-mode set:
+Minimum set:
 
 1. `native_tvl_user`
 2. `english_user_tvl_answer`
 3. `mixed_user_tvl_answer`
 4. `fact_sheet_transform`
 
-Recommended extras:
+Recommended extensions:
 
 - `radio_host_style`
 - `formal_official_style`
 - `simple_reader_style`
 - `headline_editor_style`
 
-Example:
+The answer may stay identical across these prompt modes when the point is prompt-side robustness rather than answer-side variation.
 
-The same answer paragraph can be paired with:
+## 6. Grounding policy
 
-- a native Tuvaluan request
-- an English request asking for a Tuvaluan answer
-- a mixed TVL/EN request
-- a structured fact sheet asking for a prose article
+### 6.1 What must stay real
 
-## 6. Output Artifact Families
+Prefer real Tuvaluan for:
 
-Stage C should produce four main artifact types.
+- assistant answers
+- names and place names
+- institution names
+- dates, numbers, amounts, and local references
+- quotations
+- idiomatic phrasing that already exists in the source
 
-Before those, it also needs one OCR-recovery artifact family for native scans that are not yet training-ready.
+### 6.2 What may be synthesized freely
 
-### 6.0 OCR recovery artifacts
+Synthetic generation is encouraged for:
+
+- user prompts
+- rubrics
+- task framing
+- style labels
+- metadata
+- contrastive rejected answers
+- extracted facts and structured control fields
+
+### 6.3 Support classes
+
+Every Stage C example must declare its support class.
+
+Allowed support classes:
+
+- `direct_support`
+- `light_transform`
+- `fact_compilation`
+- `weak_support`
+
+Default training pools should contain only:
+
+- `direct_support`
+- `light_transform`
+- `fact_compilation`
+
+`weak_support` examples may be kept for analysis or ablation, but should not enter the default SFT render.
+
+## 7. Artifact layout
+
+To match the repo’s current data split patterns, Stage C should use a **seed layer** and a **training render layer**.
+
+### 7.1 Seed-layer artifacts
+
+Use `data/external/stage_c_seed/` for source-level and intermediate artifacts.
+
+The shipped builder keeps the canonical Stage C seed JSONLs flat at the Stage C root, with only OCR, extracted-text, terms, and optional offline job manifests in subdirectories.
+
+Current layout:
+
+```text
+data/
+  external/
+    stage_c_seed/
+      raw_source_manifest.jsonl
+      native_doc_registry.jsonl
+      grounded_sft.jsonl
+      news_article_tasks.jsonl
+      grounded_sft_mirrors.jsonl
+      preferences.jsonl
+      build_manifest.json
+      extracted_text/
+        page_text.jsonl
+      ocr_recovered/
+        native_news_articles.jsonl
+        recovered_segments.jsonl
+      terms/
+        entities.jsonl
+        glossary_candidates.jsonl
+        constrained_tasks.jsonl
+      openai_jobs/
+        ...
+```
+
+### 7.2 Training-render artifacts
+
+Use `data/finetune/` for training-ready outputs.
+
+Recommended layout:
+
+```text
+data/
+  finetune/
+    stage_c_sft/
+      train.jsonl
+      val.jsonl
+    stage_c_dpo/
+      train.jsonl
+      val.jsonl
+    stage_c_eval/
+      manifest.jsonl
+      held_out_native.jsonl
+```
+
+This separation fixes a common ambiguity in the earlier drafts: source recovery and dataset assembly should not live in the same namespace.
+
+## 8. Required artifact contracts
+
+### 8.1 Native document registry
 
 Purpose:
 
-- turn OCR-only native scans into article-level grounded text that can actually feed Stage C
+- canonical list of Stage C candidate documents
+- provenance, quality status, rights notes, source family, and split eligibility
 
 Suggested path:
 
-- `data/stage_c/ocr_recovered/*.jsonl`
+- `data/external/stage_c_seed/native_doc_registry.jsonl`
 
-Suggested record fields:
-
-- `source_scan`
-- `page_range`
-- `layout_type`
-- `tvl_text`
-- `en_text` if present
-- `article_id`
-- `ocr_confidence`
-- `recovery_method`
-- `qa_status`
-
-### 6.1 Document registry
-
-Purpose:
-
-- canonical list of grounded sources
-- provenance, text quality, rights notes, domain tags, and split assignment
-
-Suggested path:
-
-- `data/stage_c/native_doc_registry.jsonl`
-
-### 6.2 Grounded SFT examples
-
-Purpose:
-
-- source-anchored instruction-response examples for supervised tuning
-
-Suggested path:
-
-- `data/stage_c/grounded_sft/*.jsonl`
-
-### 6.3 Preference pairs
-
-Purpose:
-
-- language-fidelity and style-alignment training
-- chosen vs rejected answers for leakage, translationese, entity loss, and register errors
-
-Suggested path:
-
-- `data/stage_c/preferences/*.jsonl`
-
-### 6.4 Held-out eval set
-
-Purpose:
-
-- contamination-resistant native-TVL evaluation
-
-Suggested path:
-
-- `data/stage_c/eval/*.jsonl`
-
-## 7. JSONL Schemas
-
-These are operational schemas, not abstract ideas. They are designed to be implementable in the repo.
-
-### 7.1 Native document registry schema
+Schema:
 
 ```json
 {
@@ -228,45 +337,112 @@ These are operational schemas, not abstract ideas. They are designed to be imple
   "copyright_status": "internal_research_only",
   "ingest_status": "candidate",
   "segment_count": 14,
+  "holdout_eligible": true,
   "notes": "Native TVL article with some OCR noise.",
   "metadata": {
     "page_start": 3,
     "page_end": 5,
     "source_hash": "sha256:...",
-    "created_at": "2026-03-30T00:00:00Z"
+    "created_at": "2026-03-31T00:00:00Z"
   }
 }
 ```
 
-### 7.2 Grounded SFT schema
+### 8.2 OCR-recovered article pool
+
+Purpose:
+
+- promote OCR-heavy native scans into article-level Tuvaluan text that can feed grounded task generation
+
+Suggested path:
+
+- `data/external/stage_c_seed/ocr_recovered/native_news_articles.jsonl`
+
+Schema:
+
+```json
+{
+  "article_id": "ocr_news:1978-04-001",
+  "source_scan": "unstruct_lang_data/Tuvalu_News_Sheets_66-99.pdf",
+  "page_range": [12, 13],
+  "layout_type": "bilingual_two_column",
+  "language_profile": "tvl_primary",
+  "tvl_text": "...",
+  "en_text": "...",
+  "segments": [
+    {"segment_id": "seg_01", "text": "..."},
+    {"segment_id": "seg_02", "text": "..."}
+  ],
+  "ocr_confidence": "medium",
+  "recovery_method": "column_split_plus_manual_rules_v1",
+  "qa_status": "spot_checked",
+  "metadata": {
+    "created_at": "2026-03-31T00:00:00Z"
+  }
+}
+```
+
+### 8.3 Grounded SFT examples
+
+Purpose:
+
+- source-anchored instruction-following examples for supervised tuning
+
+Suggested path:
+
+- `data/external/stage_c_seed/grounded_sft.jsonl`
+
+The shipped Stage C rows keep source-family, domain, grounding-level, and register information under `provenance`.
+
+Schema:
 
 ```json
 {
   "id": "grounded_sft:news:funafuti:2026-0001:headline:native_tvl_user:00",
   "task_family": "headline_generation",
   "prompt_mode": "native_tvl_user",
+  "prompt_lang": "tvl",
+  "prompt_origin": "native",
+  "assistant_lang": "tvl",
   "messages": [
-    {"role": "system", "content": "You are a careful Tuvaluan writer. Stay faithful to the source."},
-    {"role": "user", "content": "Tuku mai se ulutala puupuu mo tonu mo te tala tenei."},
-    {"role": "assistant", "content": "..." }
+    {
+      "role": "system",
+      "content": "You are a careful Tuvaluan writer. Stay faithful to the source."
+    },
+    {
+      "role": "user",
+      "content": "Tuku mai se ulutala puupuu mo tonu mo te tala tenei."
+    },
+    {
+      "role": "assistant",
+      "content": "..."
+    }
   ],
   "answer_origin": "source_derived",
-  "target_language": "tvl",
   "source_doc_id": "native_doc:news:funafuti:2026-0001",
   "source_segments": ["seg_04", "seg_05"],
-  "support_type": "direct_support",
-  "faithfulness_risk": "low",
-  "domain": "news",
-  "register": "journalistic",
-  "metadata": {
-    "generator": "gpt-5.4-mini-batch",
-    "review_status": "auto_pass",
-    "entity_constraints": ["Funafuti", "date", "institution_name"]
+  "support_type": "light_transform",
+  "provenance": {
+    "source_path": "unstruct_lang_data/Tuvalu_News_Sheets_66-99.pdf",
+    "source_family": "historic_news_scan",
+    "domains": ["news", "civic"],
+    "grounding_level": "ocr_recovered_article",
+    "register": "journalistic"
   }
 }
 ```
 
-### 7.3 Preference pair schema
+### 8.4 Preference pairs
+
+Purpose:
+
+- language-fidelity and style-alignment tuning after grounded SFT exists
+
+Suggested path:
+
+- `data/external/stage_c_seed/preferences.jsonl`
+
+Schema:
 
 ```json
 {
@@ -274,8 +450,14 @@ These are operational schemas, not abstract ideas. They are designed to be imple
   "task_family": "radio_rewrite",
   "prompt_mode": "english_user_tvl_answer",
   "messages": [
-    {"role": "system", "content": "Write in natural Tuvaluan and stay faithful to the source."},
-    {"role": "user", "content": "Rewrite this for radio in Tuvaluan."}
+    {
+      "role": "system",
+      "content": "Write in natural Tuvaluan and stay faithful to the source."
+    },
+    {
+      "role": "user",
+      "content": "Rewrite this for radio in Tuvaluan."
+    }
   ],
   "chosen": "Natural Tuvaluan answer...",
   "rejected": "Leaky or translationese answer...",
@@ -294,7 +476,19 @@ These are operational schemas, not abstract ideas. They are designed to be imple
 }
 ```
 
-### 7.4 Eval item schema
+### 8.5 Held-out eval items
+
+Purpose:
+
+- document-level, contamination-resistant evaluation for native-TVL behaviors
+
+Suggested path:
+
+- `data/finetune/stage_c_eval/held_out_native.jsonl`
+- `data/finetune/stage_c_eval/manifest.jsonl`
+- `eval/stage_c_native/manifest.jsonl`
+
+Schema:
 
 ```json
 {
@@ -318,46 +512,9 @@ These are operational schemas, not abstract ideas. They are designed to be imple
 }
 ```
 
-## 8. Generation Rules
+## 9. Cleaning and filtering
 
-### 8.1 What should stay real
-
-Prefer real Tuvaluan for:
-
-- assistant answers
-- quotes
-- names
-- institution names
-- dates and local references
-- idiomatic phrasing when present in the source
-
-### 8.2 What can be synthesized
-
-Synthetic expansion is encouraged for:
-
-- user prompts
-- rubric text
-- style labels
-- task framing
-- preference comparisons
-- extracted facts and structured metadata
-
-### 8.3 What must stay grounded
-
-Do not generate unsupported facts. Each example should carry source segments and a support type.
-
-Support levels:
-
-- `direct_support`
-- `light_transform`
-- `fact_compilation`
-- `weak_support`
-
-Only the first three should enter default SFT pools.
-
-## 9. Cleaning and Filtering
-
-Cleaning should happen before large-scale synthesis.
+Cleaning should happen **before** large-scale prompt expansion.
 
 Mandatory preprocessing:
 
@@ -366,24 +523,32 @@ Mandatory preprocessing:
 3. duplicate removal
 4. language-ID sanity checks
 5. entity normalization
-6. boilerplate/header/footer stripping
+6. boilerplate stripping
 7. domain balancing
 
 Hard filters for grounded SFT:
 
-- empty or near-empty answer
-- unsupported answer spans
-- obvious English leakage in TVL target
-- Samoan or other Polynesian drift
-- broken entities or dates
-- duplicated prompt-answer pairs
+- empty or near-empty answers
+- unsupported answers
+- obvious English leakage in TVL targets
+- Samoan or other Polynesian drift where not supported by source
+- broken entities, dates, or numbers
+- duplicate prompt-answer pairs
 - low-confidence OCR segments without review
 
-## 10. Preference-Tuning Targets
+Recommended quality fields:
 
-Preference data should focus on failure modes actually seen in Stage B/Stage C behavior.
+- `language_purity_score`
+- `entity_preservation_score`
+- `source_support_score`
+- `ocr_corruption_flag`
+- `duplicate_cluster_id`
 
-Priority rejection tags:
+## 10. Preference-tuning targets
+
+Preference data should be built only **after** the grounded SFT pool exists.
+
+Primary rejection tags:
 
 - `english_leakage`
 - `translationese`
@@ -395,144 +560,102 @@ Priority rejection tags:
 - `quote_mangling`
 - `overly_literal_translation`
 
-Default order:
+Default ordering of work:
 
 1. grounded SFT
-2. preference data for fidelity/style
-3. only later, if needed, any RL-style work
+2. preference data for fidelity and style
+3. only then any RL-style work if still justified
 
-## 11. Eval Design
+## 11. Evaluation requirements
 
-The eval set should be:
+Stage C eval must be:
 
 - native first
-- held out by document, not by random example
-- resistant to contamination
-- decomposed into axis-level scoring
+- held out by document, not by random row
+- source-aware
+- decomposed into explicit scoring axes
+- partly human-checked
 
-Required eval slices:
+Required slices:
 
-- news/article
-- government notice
+- news/article writing and rewriting
+- government/civic notices
 - cultural or narrative prose
-- short factual notice
-- OCR-noisy source after cleanup
-- mixed-prompt requests
+- short factual notices
+- OCR-noisy sources after cleanup
+- mixed TVL/EN prompt handling
 
-Scoring should not depend on a raw TVL-only model judge alone. Use rubric-based scoring with human review on a subset.
+The scorer should not rely on a TVL-only model judge alone. Use rubric-based or pairwise scoring with human review on a subset.
 
-## 12. Active Error Mining Loop
+## 12. Build sequence and acceptance gates
 
-Do not keep generating evenly across all task families.
+### 12.1 Stage C entry conditions
 
-Loop:
+Before a source family can feed default Stage C training, it must have:
 
-1. sample real native-TVL prompts against the current model
-2. cluster errors by failure type
-3. generate new grounded data only for weak slices
-4. rebuild preference data only for the failure tags that matter
-5. refresh held-out eval slices if the task mix changes
+- stable provenance
+- usable segmentation
+- source-support tracking
+- basic language sanity checks
+- contamination-aware split assignment
 
-Suggested error clusters:
+### 12.2 Minimum build order
 
-- native prompt misunderstanding
-- English output leakage
-- wrong named entity
-- loss of local idiom
-- inability to rewrite by register
-- unsupported summary hallucination
+1. build or refresh the native document registry
+2. recover OCR-heavy native scans into article-level text where possible
+3. segment source documents with span tracking
+4. generate grounded task families
+5. filter and score candidates
+6. build document-level held-out eval
+7. assemble SFT render
+8. build preference pairs for the winner only
 
-## 13. Effort Allocation
+### 12.3 First shippable Stage C package
 
-Recommended Stage C effort split:
+If only one short build can ship, it should contain:
 
-| Workstream | Share |
-|---|---:|
-| Reverse-instruction grounded SFT from native documents | 18% |
-| Multi-task expansion from each document | 12% |
-| Cleaning, OCR repair, dedup, normalization, balancing | 12% |
-| Bilingual and mixed prompt mirrors around native outputs | 10% |
-| Preference tuning data for language fidelity | 10% |
-| Native held-out eval set | 10% |
-| Terminology and named-entity preservation tasks | 8% |
-| Active error mining and targeted regeneration | 7% |
-| Backtranslation and round-trip filtering | 6% |
-| Continued-pretraining pack preparation | 4% |
-| Helper-model filtering / metadata extraction | 2% |
-| RL-heavy or RFT-heavy work | 1% |
+1. 50 to 200 native TVL source documents
+2. cleaned segmentation and provenance
+3. 6 to 12 grounded task variants per document
+4. TVL-first assistant answers
+5. one small preference set focused on leakage and entity preservation
+6. one document-level held-out eval slice
 
-This intentionally prioritizes grounded SFT, cleanup, and preference data over speculative RL work.
+That is the minimum useful Stage C release.
 
-## 14. OpenAI Credit Strategy
+## 13. Non-goals
 
-Use external API credits mainly for:
+For the first serious Stage C pass, do **not** make these the center of effort:
 
-- prompt-side synthesis
-- grounded task expansion
-- adjudication on hard examples
-- preference-pair drafting
-- metadata extraction and filtering
+- retranslating large English capability corpora as the main bet
+- relying on a single article template family
+- treating all synthetic TVL as equally reliable
+- pushing RL as the primary optimization path
+- trusting low-resource automatic judges without source-aware rubrics
 
-Suggested operating mix:
+## 14. Implementation checklist
 
-- strongest model for rubric writing, hard adjudication, and gold preference decisions
-- mini model for bulk task synthesis and grounded rewrites
-- nano-class model for cheap tagging, language checks, and metadata extraction
+A Stage C implementation is complete only when all of the following exist:
 
-Use batch mode for large offline jobs whenever possible. Do not spend most credits on generic translated-English SFT.
+1. a native document registry
+2. a recovered/segmented source pool with provenance
+3. grounded task expansion for the required families
+4. filtering for leakage, entity loss, duplicates, and weak support
+5. a held-out native eval builder
+6. a preference-pair builder for language fidelity
+7. training-ready renders in `data/finetune/`
 
-## 15. Suggested Repo Layout
+Once those exist, Stage C is a reproducible pipeline rather than an ad hoc prompting idea.
 
-```text
-data/
-  stage_c/
-    native_doc_registry.jsonl
-    grounded_sft/
-      native_tvl_user.jsonl
-      english_user_tvl_answer.jsonl
-      mixed_user_tvl_answer.jsonl
-      fact_sheet_transform.jsonl
-    preferences/
-      language_fidelity.jsonl
-      register_control.jsonl
-    eval/
-      held_out_native.jsonl
-      rubrics.jsonl
-    manifests/
-      build_manifest.json
+## 15. Shipped CLI surface
+
+The current repo-facing Stage C commands are:
+
+```bash
+uv run python scripts/build_stage_c_pipeline.py --config configs/stage_c_pipeline_default.json
+uv run python scripts/eval_stage_c_native.py --config configs/stage_c_eval_native_oss120b.json --dry-run
+uv run python scripts/train_stage_b_agent.py --config configs/stage_c_agent_oss120b_native_plus_english.json
+uv run python scripts/stage_c_openai_jobs.py --job-type prompt_synthesis --input-path data/external/stage_c_seed/grounded_sft_mirrors.jsonl
 ```
 
-## 16. Practical First Build
-
-If only one short build can ship first, do this:
-
-1. Pick 50 to 200 native TVL source documents
-2. Clean and segment them
-3. Build document registry entries
-4. Generate 6 to 12 grounded task variants per document
-5. Keep assistant answers source-derived and TVL-first
-6. Build a small preference set focused on leakage and entity preservation
-7. Hold out a document-level native eval slice
-
-That is the smallest useful Stage C package.
-
-## 17. Explicit Non-Goals
-
-For the first Stage C pass, do not:
-
-- translate large English capability corpora again as the main bet
-- rely on one article template family
-- treat all synthetic TVL as equal-quality
-- push RL as the primary optimization path
-- trust low-resource automatic judges without source-aware rubrics
-
-## 18. Recommended Next Implementation Steps
-
-1. Add a document-registry builder for native TVL sources.
-2. Add segmentation and source-span tracking.
-3. Add grounded task expansion for the required task families.
-4. Add filters for English leakage, entity loss, and weak support.
-5. Add preference-pair builders for language fidelity.
-6. Add a held-out native eval builder.
-
-Once those exist, Stage C becomes a reproducible data pipeline rather than an ad hoc prompting recipe.
+The Stage C trainer integration is intentionally minimal: it reuses the existing Stage B training entrypoint and swaps in Stage C JSONL renders through dedicated configs.

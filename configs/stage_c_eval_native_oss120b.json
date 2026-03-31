@@ -1,0 +1,15 @@
+{
+  "stage": "stage_c_native_eval",
+  "model": {
+    "name": "openai/gpt-oss-120b"
+  },
+  "data": {
+    "eval_manifest": "data/finetune/stage_c_eval/manifest.jsonl"
+  },
+  "eval": {
+    "out_dir": "eval/stage_c_native/results",
+    "max_tokens": 768,
+    "temperature": 0.0
+  }
+}
+

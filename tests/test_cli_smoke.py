@@ -19,6 +19,9 @@ SCRIPTS = [
     "scripts/build_stage_b_mix.py",
     "scripts/train_stage_b_agent.py",
     "scripts/eval_stage_b_agent.py",
+    "scripts/build_stage_c_pipeline.py",
+    "scripts/eval_stage_c_native.py",
+    "scripts/stage_c_openai_jobs.py",
     "scripts/export_football_interactions.py",
 ]
 
@@ -85,6 +88,21 @@ def test_train_stage_b_help():
 
 def test_eval_stage_b_help():
     result = _run_help("scripts/eval_stage_b_agent.py")
+    assert result.returncode == 0, result.stderr
+
+
+def test_build_stage_c_help():
+    result = _run_help("scripts/build_stage_c_pipeline.py")
+    assert result.returncode == 0, result.stderr
+
+
+def test_eval_stage_c_help():
+    result = _run_help("scripts/eval_stage_c_native.py")
+    assert result.returncode == 0, result.stderr
+
+
+def test_stage_c_openai_jobs_help():
+    result = _run_help("scripts/stage_c_openai_jobs.py")
     assert result.returncode == 0, result.stderr
 
 

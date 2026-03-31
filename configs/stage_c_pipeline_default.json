@@ -1,0 +1,25 @@
+{
+  "stage": "stage_c_pipeline",
+  "paths": {
+    "asset_dir": "unstruct_lang_data",
+    "stage_a_seed_dir": "data/external/stage_a_seed",
+    "ocr_dir": "data/external/ocr_scans",
+    "ocr_fast_dir": "data/external/ocr_scans_fast",
+    "output_dir": "data/external/stage_c_seed",
+    "sft_output_dir": "data/finetune/stage_c_sft",
+    "dpo_output_dir": "data/finetune/stage_c_dpo",
+    "eval_output_dir": "data/finetune/stage_c_eval",
+    "eval_dir": "eval/stage_c_native",
+    "reports_dir": "reports"
+  },
+  "build": {
+    "default_arm": "native_plus_english",
+    "val_fraction": 0.08,
+    "holdout_fraction": 0.18,
+    "max_news_articles_per_source": 64,
+    "min_doc_chars": 180,
+    "min_segment_chars": 80,
+    "ocr_missing_small_pdfs": false
+  }
+}
+

@@ -172,6 +172,22 @@ def test_stage_b_qwen30b_config_valid():
     assert config["training"]["lora_rank"] == 32
 
 
+def test_stage_c_pipeline_config_valid():
+    root = get_repo_root()
+    config = load_config(root / "configs" / "stage_c_pipeline_default.json")
+    assert config["stage"] == "stage_c_pipeline"
+    assert config["paths"]["output_dir"] == "data/external/stage_c_seed"
+    assert config["build"]["default_arm"] == "native_plus_english"
+
+
+def test_stage_c_train_config_valid():
+    root = get_repo_root()
+    config = load_config(root / "configs" / "stage_c_agent_oss120b_native_plus_english.json")
+    assert config["stage"] == "stage_b_agent"
+    assert config["model"]["name"] == "openai/gpt-oss-120b"
+    assert config["data"]["train_file"].endswith("native_plus_english_train.jsonl")
+
+
 # --- Task 2 tests: pilot subset ---
 
 def _make_fake_examples(n: int, chars_per_msg: int = 200) -> list[dict]:

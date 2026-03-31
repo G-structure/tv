@@ -1,0 +1,21 @@
+{
+  "stage": "stage_c_native_eval",
+  "timestamp": "2026-03-31T07:19:33.341885+00:00",
+  "git_hash": "ba3f01ae8ea5a32e6c2120ead8c8ebccf0b2f2c1",
+  "git_dirty": true,
+  "git_diff_length": 81276,
+  "config": {
+    "model_name": "openai/gpt-oss-120b",
+    "model_path": null,
+    "eval_manifest": "data/finetune/stage_c_eval/manifest.jsonl",
+    "output_dir": "eval/stage_c_native/results",
+    "max_tokens": 768,
+    "temperature": 0.0,
+    "eval_limit": null,
+    "dry_run": true
+  },
+  "eval_manifest": "/Users/cuboniks/Projects/tuvalul-lm/data/finetune/stage_c_eval/manifest.jsonl",
+  "output_dir": "/Users/cuboniks/Projects/tuvalul-lm/eval/stage_c_native/results",
+  "count": 56,
+  "dry_run": true
+}

@@ -33,7 +33,7 @@ Use those files for presentation copy. Use the docs in this folder for implement
 | [UNSTRUCTURED_DATA_PIPELINE.md](UNSTRUCTURED_DATA_PIPELINE.md) | OCR and unstructured-source ingestion |
 | [UNSTRUCTURED_DATA_SOURCES.md](UNSTRUCTURED_DATA_SOURCES.md) | Inventory of raw assets under `unstruct_lang_data/` and their current usage status |
 | [STAGE_C_NATIVE_GROUNDING_SPEC.md](STAGE_C_NATIVE_GROUNDING_SPEC.md) | Concrete Stage C data spec for grounded native-TVL SFT, preferences, and evals |
-| [STAGE_C_RESEARCH_PLAN.md](STAGE_C_RESEARCH_PLAN.md) | Literature-backed short-horizon Stage C plan based on the papers in `research/` |
+| [STAGE_C_PLAN_FROM_RESEARCH.md](STAGE_C_PLAN_FROM_RESEARCH.md) | Canonical literature-backed Stage C plan and execution order |
 | [SELECTIVE_TRANSLATION_SPEC.md](SELECTIVE_TRANSLATION_SPEC.md) | Rules for preserving code, JSON, and tool schemas during translation |
 | [LOCAL_MLX_TRAINING.md](LOCAL_MLX_TRAINING.md) | Local MLX export and training path |
 
@@ -45,6 +45,7 @@ These are still useful, but they are not always exact descriptions of the live t
 |---|---|
 | [CODEBASE_ORGANIZATION_PLAN.md](CODEBASE_ORGANIZATION_PLAN.md) | Reorg rationale and remaining cleanup roadmap |
 | [DATASET_COLLECTION_AND_ML_PIPELINE.md](DATASET_COLLECTION_AND_ML_PIPELINE.md) | Earlier end-to-end planning notes |
+| [STAGE_C_RESEARCH_PLAN.md](STAGE_C_RESEARCH_PLAN.md) | Earlier Stage C research draft retained for editorial history |
 | [TVL_EN_TINKER_PLAN.md](TVL_EN_TINKER_PLAN.md) | Original Tinker planning notes |
 | [football_site_plan.md](football_site_plan.md) | Deep product and extraction notes for the football app |
 

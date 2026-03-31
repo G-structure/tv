@@ -3,11 +3,12 @@
 ## Overview
 
 This pipeline transforms a Tuvaluan-English parallel corpus into a bilingual,
-capable LLM adapter through three stages:
+capable LLM adapter through three stages plus a native-document grounding layer:
 
 1. **Stage A** -- Translation adapter (small model, translation SFT only)
 2. **Synthetic generation** -- Use Stage A to translate English capability datasets into Tuvaluan
 3. **Stage B** -- Bilingual capability adapter (large model, mixed training)
+4. **Stage C** -- Native-document grounding datasets, evals, and ablation configs run through the Stage B trainer
 
 ```
 Aligned parallel corpus
@@ -30,6 +31,12 @@ Aligned parallel corpus
         |
         v
   Final bilingual adapter (shipped separately from base)
+        |
+        v
+  [Stage C: Native Grounding]
+  Build grounded TVL corpora from unstructured native docs
+  Hold out eval by source document
+  Train ablations via the existing Stage B trainer configs
 ```
 
 ## Stage A: Translation Adapter
@@ -203,6 +210,94 @@ data/finetune/stage_b_mix/
     stats.json
 ```
 
+## Stage C: Native-Document Grounding
+
+**Purpose**: Build grounded Tuvaluan datasets from native or native-heavy documents, hold out eval by source document, and train Stage C ablations without changing the existing trainer core.
+
+**Current implementation**:
+
+- Build: `scripts/build_stage_c_pipeline.py` -> `tv/training/stage_c/pipeline.py`
+- Eval: `scripts/eval_stage_c_native.py` -> `tv/training/stage_c/eval.py`
+- Optional offline jobs: `scripts/stage_c_openai_jobs.py` -> `tv/training/stage_c/openai_jobs.py`
+- Training integration: existing `scripts/train_stage_b_agent.py` entrypoint with Stage C-specific configs
+
+### Commands
+
+```bash
+# 1. Build the Stage C grounded package
+uv run python scripts/build_stage_c_pipeline.py \
+    --config configs/stage_c_pipeline_default.json
+
+# 2. Evaluate the held-out native set
+uv run python scripts/eval_stage_c_native.py \
+    --config configs/stage_c_eval_native_oss120b.json --dry-run
+
+# 3. Train Stage C ablation arms on the existing Stage B trainer
+uv run python scripts/train_stage_b_agent.py \
+    --config configs/stage_c_agent_oss120b_native_only.json
+uv run python scripts/train_stage_b_agent.py \
+    --config configs/stage_c_agent_oss120b_native_plus_english.json
+uv run python scripts/train_stage_b_agent.py \
+    --config configs/stage_c_agent_oss120b_native_plus_stage_b_translated.json
+uv run python scripts/train_stage_b_agent.py \
+    --config configs/stage_c_agent_oss120b_native_plus_bilingual.json
+```
+
+### Prompt-mixture ablations
+
+- `native_only`: native TVL prompts only
+- `native_plus_english`: native TVL prompts plus English prompts requesting Tuvaluan answers
+- `native_plus_stage_b_translated`: native TVL prompts plus Stage-B-translated Tuvaluan prompt mirrors
+- `native_plus_bilingual`: native TVL plus English plus translated mirrors
+
+### Output
+
+```text
+data/external/stage_c_seed/
+    raw_source_manifest.jsonl
+    native_doc_registry.jsonl
+    grounded_sft.jsonl
+    news_article_tasks.jsonl
+    grounded_sft_mirrors.jsonl
+    preferences.jsonl
+    build_manifest.json
+    extracted_text/
+        page_text.jsonl
+    ocr_recovered/
+        native_news_articles.jsonl
+        recovered_segments.jsonl
+    terms/
+        entities.jsonl
+        glossary_candidates.jsonl
+        constrained_tasks.jsonl
+
+data/finetune/stage_c_sft/
+    train.jsonl
+    val.jsonl
+    arms/
+        native_only_train.jsonl
+        native_only_val.jsonl
+        native_plus_english_train.jsonl
+        native_plus_english_val.jsonl
+        native_plus_stage_b_translated_train.jsonl
+        native_plus_stage_b_translated_val.jsonl
+        native_plus_bilingual_train.jsonl
+        native_plus_bilingual_val.jsonl
+
+data/finetune/stage_c_dpo/
+    train.jsonl
+    val.jsonl
+
+data/finetune/stage_c_eval/
+    manifest.jsonl
+    held_out_native.jsonl
+
+eval/stage_c_native/
+    manifest.jsonl
+    human_check_subset.jsonl
+    rubric.md
+```
+
 ## Config Files
 
 | Config | Purpose |
@@ -213,6 +308,12 @@ data/finetune/stage_b_mix/
 | `configs/stage_b_mix_default.json` | Stage B mix ratios and sources |
 | `configs/stage_b_agent_oss120b.json` | Stage B training on gpt-oss-120b |
 | `configs/stage_b_agent_qwen30b.json` | Stage B training on Qwen3-30B-A3B |
+| `configs/stage_c_pipeline_default.json` | Stage C source recovery, assembly, and split settings |
+| `configs/stage_c_eval_native_oss120b.json` | Stage C held-out native eval config |
+| `configs/stage_c_agent_oss120b_native_only.json` | Stage C native-only ablation on the Stage B trainer |
+| `configs/stage_c_agent_oss120b_native_plus_english.json` | Stage C default ablation on the Stage B trainer |
+| `configs/stage_c_agent_oss120b_native_plus_stage_b_translated.json` | Stage C translated-mirror ablation |
+| `configs/stage_c_agent_oss120b_native_plus_bilingual.json` | Stage C bilingual-mirror ablation |
 
 ## Package Structure
 
@@ -251,6 +352,10 @@ tv/
       train.py
       eval.py
       tooling_modes.py
+    stage_c/
+      pipeline.py
+      eval.py
+      openai_jobs.py
 ```
 
 ## Dependencies
@@ -271,6 +376,8 @@ Current docs covering dataset and collection work:
 - `docs/SCRAPING_PLAYBOOK.md`: **step-by-step reproduction guide** for all data collection (scripts, commands, troubleshooting).
 - `docs/DATASET_COLLECTION_AND_ML_PIPELINE.md`: dataset schema, alignment contracts, quality gates, and Stage A/B data lineage.
 - `docs/UNSTRUCTURED_DATA_PIPELINE.md`: unstructured data extraction (`unstruct_lang_data`) and OCR/playbook for supplemental training assets.
+- `docs/UNSTRUCTURED_DATA_SOURCES.md`: unstructured asset inventory, OCR-heavy priorities, and Stage C source recommendations.
+- `docs/STAGE_C_PLAN_FROM_RESEARCH.md`: canonical research-backed Stage C execution order and ablation rationale.
 - `tv2en.md`: URL mapping and cross-language pairing notes used by scraping/alignment.
 - `docs/TVL_EN_TINKER_PLAN.md`: staged training strategy, model choices, and open TODOs for synthetic loaders.
 - `docs/SELECTIVE_TRANSLATION_SPEC.md`: how selective translation preserves code/JSON/tool structure.
@@ -296,8 +403,13 @@ This repo separates collection and ML dataset layers:
    - `data/finetune/stage_b_synthetic_tvl/rejected/*.jsonl`
 5. Stage B mixed dataset:
    - `data/finetune/stage_b_mix/*.jsonl` (when built)
+6. Stage C grounded datasets and evals:
+   - `data/external/stage_c_seed/*.jsonl`
+   - `data/finetune/stage_c_sft/*.jsonl`
+   - `data/finetune/stage_c_dpo/*.jsonl`
+   - `data/finetune/stage_c_eval/*.jsonl`
 
-Important: in this checkout, Stage A artifacts may need rebuild after the full scrape completed (309k pairs vs earlier ~50k snapshot). Stage B artifacts are not yet created.
+Important: in this checkout, Stage A artifacts may need rebuild after the full scrape completed (309k pairs vs earlier ~50k snapshot). Stage B and Stage C artifacts exist on disk, but should still be rebuilt when source corpora or configs change.
 
 ## Stage A metadata contract (what is copied vs added)
 
@@ -364,6 +476,13 @@ Rejection telemetry in Stage A is written to `rejected.jsonl` and summarized in 
 5. Evaluate:
    - `uv run python scripts/eval_stage_b_agent.py --config configs/stage_b_agent_oss120b.json`
    - `uv run python scripts/eval_stage_b_agent.py --config configs/stage_b_agent_qwen30b.json`
+
+### Stage C: Native-Document Grounding
+
+1. Build Stage C artifacts: `uv run python scripts/build_stage_c_pipeline.py --config configs/stage_c_pipeline_default.json`
+2. Smoke-evaluate the held-out native set: `uv run python scripts/eval_stage_c_native.py --config configs/stage_c_eval_native_oss120b.json --dry-run`
+3. Train the default Stage C arm: `uv run python scripts/train_stage_b_agent.py --config configs/stage_c_agent_oss120b_native_plus_english.json`
+4. Compare the other Stage C ablations by swapping the Stage C agent config path
 
 ## TensorBoard
 

@@ -1,0 +1,47 @@
+{
+  "count": 56,
+  "by_slice": {
+    "cultural_narrative": {
+      "adequacy": 1.0,
+      "in_language_fidelity": 1.0,
+      "entity_preservation": 1.0,
+      "style_fit": 0.75,
+      "source_support": 1.0
+    },
+    "government_civic": {
+      "adequacy": 1.0,
+      "in_language_fidelity": 1.0,
+      "entity_preservation": 0.9861111111111112,
+      "style_fit": 1.0,
+      "source_support": 1.0
+    },
+    "mixed_prompt_requests": {
+      "adequacy": 1.0,
+      "in_language_fidelity": 0.9,
+      "entity_preservation": 0.9944444444444445,
+      "style_fit": 0.86,
+      "source_support": 1.0
+    },
+    "ocr_noisy_after_cleanup": {
+      "adequacy": 1.0,
+      "in_language_fidelity": 0.4,
+      "entity_preservation": 1.0,
+      "style_fit": 0.9,
+      "source_support": 1.0
+    },
+    "terminology_entity_preservation": {
+      "adequacy": 1.0,
+      "in_language_fidelity": 0.75,
+      "entity_preservation": 1.0,
+      "style_fit": 1.0,
+      "source_support": 0.7303729256854257
+    }
+  },
+  "means": {
+    "adequacy": 1.0,
+    "in_language_fidelity": 0.7857142857142857,
+    "entity_preservation": 0.996031746031746,
+    "style_fit": 0.9232142857142858,
+    "source_support": 0.9229636930529788
+  }
+}

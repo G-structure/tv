@@ -1,0 +1,43 @@
+{
+  "stage": "stage_b_agent",
+  "model": {
+    "name": "openai/gpt-oss-120b",
+    "type": "moe",
+    "note": "Stage C native grounding SFT on the existing Stage B trainer."
+  },
+  "training": {
+    "mode": "lora",
+    "lora_rank": 32,
+    "max_length": 4096,
+    "batch_size": 32,
+    "learning_rate": 1e-4,
+    "epochs": 2,
+    "save_every": 200,
+    "seed": 17,
+    "train_on_what": "ALL_ASSISTANT_MESSAGES",
+    "ttl_seconds": 604800,
+    "ablation_mode": "mixed",
+    "included_task_families": null,
+    "tool_mode": "safe",
+    "gen_eval_every": 250,
+    "gen_eval_max_tokens": 768,
+    "val_every": 250,
+    "val_max_examples": 200
+  },
+  "data": {
+    "train_file": "data/finetune/stage_c_sft/arms/native_plus_bilingual_train.jsonl",
+    "train_pilot_file": "data/finetune/stage_c_sft/arms/native_plus_bilingual_train.jsonl",
+    "validation_file": "data/finetune/stage_c_sft/arms/native_plus_bilingual_val.jsonl"
+  },
+  "eval": {
+    "gen_eval_data": "data/finetune/stage_c_eval/manifest.jsonl",
+    "capability_test_file": "data/finetune/stage_c_eval/manifest.jsonl",
+    "max_tokens": 768,
+    "temperature": 0.0,
+    "out_dir": "logs/tinker/evals/stage_c_native_plus_bilingual"
+  },
+  "logs": {
+    "base_dir": "logs/tinker/stage_c_native_plus_bilingual"
+  }
+}
+
