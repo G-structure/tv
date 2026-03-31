@@ -242,6 +242,43 @@ export async function insertArticleFeedbackForm(
     .run();
 }
 
+export async function backfillIslandForSession(
+  sessionId: string,
+  island: string
+): Promise<void> {
+  const db = await getDb();
+  await ensureCommunitySchema(db);
+  await Promise.all([
+    db
+      .prepare(
+        `UPDATE feedback
+         SET island = ?
+         WHERE session_id = ?
+           AND (island IS NULL OR TRIM(island) = '')`
+      )
+      .bind(island, sessionId)
+      .run(),
+    db
+      .prepare(
+        `UPDATE implicit_signals
+         SET island = ?
+         WHERE session_id = ?
+           AND (island IS NULL OR TRIM(island) = '')`
+      )
+      .bind(island, sessionId)
+      .run(),
+    db
+      .prepare(
+        `UPDATE article_feedback_forms
+         SET island = ?
+         WHERE session_id = ?
+           AND (island IS NULL OR TRIM(island) = '')`
+      )
+      .bind(island, sessionId)
+      .run(),
+  ]);
+}
+
 export async function getFateleStats(): Promise<FateleStats> {
   const db = await getDb();
   await ensureCommunitySchema(db);

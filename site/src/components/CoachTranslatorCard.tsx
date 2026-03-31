@@ -1,18 +1,12 @@
 import { createMemo, createSignal, For, Show } from "solid-js";
 import type { LanguageMode } from "./LanguageToggle";
+import { promptForIslandIfUnknown } from "./IslandSelector";
+import { ensureCommunitySessionId, getKnownIsland } from "~/lib/community";
 
 interface CoachTranslatorCardProps {
   articleId: string;
   paragraphCount: number;
   initialMode: LanguageMode;
-}
-
-function ensureSessionId(): string {
-  const existing = localStorage.getItem("talafutipolo_session");
-  if (existing) return existing;
-  const next = crypto.randomUUID();
-  localStorage.setItem("talafutipolo_session", next);
-  return next;
 }
 
 export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
@@ -52,8 +46,8 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
     setError(null);
 
     try {
-      const island = localStorage.getItem("talafutipolo_island");
-      const sessionId = ensureSessionId();
+      const island = getKnownIsland();
+      const sessionId = ensureCommunitySessionId();
       const response = await fetch("/api/article-feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -77,14 +71,15 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
       }
 
       setSubmitted(true);
+      if (!island) {
+        void promptForIslandIfUnknown();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save your coaching note.");
     } finally {
       setSubmitting(false);
     }
   };
-
-  const islandLabel = () => localStorage.getItem("talafutipolo_island") || "your island";
 
   return (
     <section class="mt-8 rounded-2xl border border-[var(--gold)]/40 bg-[var(--ocean-deep)] text-white p-5">
@@ -111,9 +106,8 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
           <div class="mt-4 rounded-xl bg-white/10 p-4 text-sm text-[var(--sky-dark)]">
             <p class="font-medium text-white">Malo!</p>
             <p class="mt-1">
-              Your coaching note was saved for {islandLabel()}. This article now
-              contributes structured feedback for future preference tuning and
-              correction review.
+              Your coaching note was saved. This article now contributes
+              structured feedback for translation review and future tuning.
             </p>
           </div>
         }
@@ -223,9 +217,9 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
 
           <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
             <p class="text-xs text-[var(--sky-dark)]">
-              Anonymous session only. We store your island, feedback choices,
-              and optional correction note so they can be exported later for
-              preference tuning.
+              Anonymous browser session only. We group your feedback, island,
+              and optional correction note under one session so they can be
+              exported later for preference tuning.
             </p>
             <button
               type="button"

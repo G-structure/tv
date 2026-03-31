@@ -9,7 +9,8 @@ import { absoluteUrl } from "~/lib/site";
 import type { LanguageMode } from "~/components/LanguageToggle";
 import LanguageToggle from "~/components/LanguageToggle";
 import CoachTranslatorCard from "~/components/CoachTranslatorCard";
-import { ensureIslandChosen } from "~/components/IslandSelector";
+import { promptForIslandIfUnknown } from "~/components/IslandSelector";
+import { ensureCommunitySessionId, getKnownIsland } from "~/lib/community";
 
 const loadArticle = cache(async (id: string) => {
   "use server";
@@ -45,9 +46,8 @@ function SourceName(props: { sourceId: string }) {
 }
 
 async function sendSignal(articleId: string, signalType: string, paragraphIndex?: number) {
-  await ensureIslandChosen();
-  const island = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_island") : null;
-  const session = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_session") : null;
+  const island = getKnownIsland();
+  const session = ensureCommunitySessionId();
   fetch("/api/signal", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -73,11 +73,9 @@ function BilingualParagraph(props: {
 
   const handleVote = async (type: "thumbs_up" | "thumbs_down") => {
     if (vote() === type) return;
-    await ensureIslandChosen();
-    setVote(type);
-    const island = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_island") : null;
-    const session = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_session") : null;
-    fetch("/api/feedback", {
+    const island = getKnownIsland();
+    const session = ensureCommunitySessionId();
+    const response = await fetch("/api/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -87,7 +85,14 @@ function BilingualParagraph(props: {
         island,
         session_id: session,
       }),
-    }).catch(() => {});
+    }).catch(() => null);
+
+    if (!response?.ok) return;
+    setVote(type);
+
+    if (!island) {
+      await promptForIslandIfUnknown();
+    }
   };
 
   const handleReveal = () => {
